@@ -9,7 +9,7 @@ dependencies = [
     "numpy",
     "openpnm",
     "numpy-stl",
-    "scipy"
+    "scipy",
     "pypardiso",
 ]
 requires-python = ">= 3.9"
