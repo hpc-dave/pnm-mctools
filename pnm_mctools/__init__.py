@@ -1,2 +1,2 @@
-from . import ToolSet
-from . import NumericalDifferentiation
+from .ToolSet import MulticomponentTools
+from .NumericalDifferentiation import NumericalDifferentiation
