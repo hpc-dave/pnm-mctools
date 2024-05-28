@@ -2,7 +2,10 @@ import numpy as np
 import scipy
 import scipy.sparse
 import inspect
-from . import NumericalDifferentiation
+try:
+    from . import NumericalDifferentiation
+except:
+    import NumericalDifferentiation
 
 
 def GetLineInfo():
@@ -200,7 +203,7 @@ def ComputeRateForBC(bc, phi, rate_old=None):
     if bc is not None:
         # My brain was pretty cooked when writing this function, be sure to test it
         # before applying!
-        raise ('Untested!')
+        raise ValueError('Untested!')
     rate = bc['rate']
     if rate_old is None:
         if isinstance(rate, float) or isinstance(rate, int):
@@ -224,7 +227,7 @@ def ComputeRateForBC(bc, phi, rate_old=None):
     w_rate[~rate_lower] = -drate_tot * dphi[~rate_lower] / np.sum(-dphi[~rate_lower])
     drate = w_rate * drate_tot
     if np.sum(drate) != 0.:
-        raise ('determined changes of rate are not conservative')
+        raise RuntimeError('determined changes of rate are not conservative')
     rate_new = rate_old + drate
     return rate_new
 
@@ -286,22 +289,22 @@ def ApplyBC(network, bc, A=None, x=None, b=None, type='Jacobian'):
         print(f'{GetLineInfo()}: No boundary conditions were provided, consider removing function altogether!')
 
     if A is None and b is None:
-        raise ('Neither matrix nor rhs were provided')
+        raise ValueError('Neither matrix nor rhs were provided')
     if type == 'Jacobian' and A is None:
-        raise (f'No matrix was provided although {type} was provided as type')
+        raise ValueError(f'No matrix was provided although {type} was provided as type')
     if type == 'Jacobian' and b is not None and x is None:
-        raise (f'No initial values were provided although {type} was specified and rhs is not None')
+        raise ValueError(f'No initial values were provided although {type} was specified and rhs is not None')
     if type == 'Defect' and b is None:
-        raise (f'No rhs was provided although {type} was provided as type')
+        raise ValueError(f'No rhs was provided although {type} was provided as type')
 
     num_pores = network.Np
     num_rows = A.shape[0] if A is not None else b.shape[0]
     num_components = int(num_rows/num_pores)
     if (num_rows % num_pores) != 0:
-        raise (f'the number of matrix rows now not consistent with the number of pores,\
+        raise ValueError(f'the number of matrix rows now not consistent with the number of pores,\
                mod returned {num_rows % num_pores}')
     if b is not None and num_rows != b.shape[0]:
-        raise ('Dimension of rhs and matrix inconsistent!')
+        raise ValueError('Dimension of rhs and matrix inconsistent!')
 
     if isinstance(bc, dict) and isinstance(list(bc.keys())[0], int):
         bc = list(bc)
@@ -332,7 +335,7 @@ def ApplyBC(network, bc, A=None, x=None, b=None, type='Jacobian'):
                                          A=A, x=x, b=b,
                                          type=type)
             else:
-                raise (f'unknown bc type: {param.keys()}')
+                raise ValueError(f'unknown bc type: {param.keys()}')
 
     if A is not None:
         A.eliminate_zeros()
@@ -374,13 +377,25 @@ class MulticomponentTools:
     Kirchhoff's law. For simplicity, this notation is dropped and only 'divergence' used.
     """
     def __init__(self, network, num_components: int = 1, bc=None):
-        self.network = network
-        self.bc = bc
-        self.num_components = num_components
         self._ddt = {}
         self._grad = {}
         self._div = {}
         self._upwind = {}
+        self.bc = [{} for _ in range(num_components)]
+        self.network = network
+        self.num_components = num_components
+        if bc is not None:
+            if isinstance(bc, list):
+                for id, inst in enumerate(bc):
+                    if not isinstance(inst, dict):
+                        raise ValueError('the provided entry does not conform to the format {label: bc}')
+                    label, bc = list(inst.keys())[0], list(inst.values())[0]
+                    self.SetBC(id=id, label=label, bc=bc)
+            elif isinstance(bc, dict):
+                label, bc = list(bc.keys())[0], list(bc.values())[0]
+                self.SetBC(label=label, bc=bc)
+            else:
+                raise ValueError('incompatible boundary condition format!')
 
     def _get_include(self, include, exclude):
         r"""
@@ -441,9 +456,9 @@ class MulticomponentTools:
         num_components = self.num_components
 
         if dt <= 0.:
-            raise (f'timestep is invalid, following constraints were violated: {dt} !> 0')
+            raise ValueError(f'timestep is invalid, following constraints were violated: {dt} !> 0')
         if num_components < 1:
-            raise (f'number of components has to be positive, following value was provided: {num_components}')
+            raise ValueError(f'number of components has to be positive, following value was provided: {num_components}')
 
         dVdt = network[weight].copy() if isinstance(weight, str) else weight
         dVdt /= dt
@@ -558,7 +573,7 @@ class MulticomponentTools:
         _weights = None
         if custom_weights:
             if weights is None:
-                raise ('custom weights were specified, but none were provided')
+                raise ValueError('custom weights were specified, but none were provided')
             _weights = np.flatten(weights)
             if _weights.shape[0] < network.Nt*num_components*2:
                 _weights = np.append(-_weights, _weights)
@@ -646,7 +661,7 @@ class MulticomponentTools:
             elif fluxes.size == network.Nt:
                 _fluxes = fluxes
             else:
-                raise ('invalid flux dimensions')
+                raise ValueError('invalid flux dimensions')
             weights = np.append((_fluxes < 0).astype(float), _fluxes > 0)
             return np.transpose(network.create_incidence_matrix(weights=weights, fmt='csr'))
         else:
@@ -703,7 +718,7 @@ class MulticomponentTools:
                     data[:, pos] = weights.reshape((network.Nt*2))
                     pos += 1
             else:
-                raise ('fluxes have incompatible dimension')
+                raise ValueError('fluxes have incompatible dimension')
 
             rows = np.ndarray.flatten(rows)
             cols = np.ndarray.flatten(cols)
@@ -726,6 +741,47 @@ class MulticomponentTools:
         A tuple of the sorted list, which can be used as key in dictionaries
         """
         return tuple(range(self.num_components) if include is None else sorted(include))
+
+    def SetBC(self, **kwargs):
+        id, label, bc = 0, 'None', None
+        for key, value in kwargs.items():
+            if key == 'id':
+                if not isinstance(value, int):
+                    raise ValueError(f'The provided ID ({value}) is not an integer value!')
+                if value < 0:
+                    raise ValueError(f'The provided ID ({value}) has to be positive!')
+                if value >= self.num_components:
+                    raise ValueError(f'The provided ID ({value}) exceeds the number of components ({self.num_components})!')
+                id = value
+            elif key == 'label':
+                if not isinstance(value, str):
+                    raise TypeError(f'The provided label ({value}) needs to be a string!')
+                label = value
+            elif key == 'bc':
+                if isinstance(value, float) or isinstance(value, int):
+                    bc = {'prescribed': value}
+                elif isinstance(value, dict):
+                    bc = value
+                else:
+                    raise ValueError(f'The provided BC ({bc}) cannot be converted to a standard bc')
+            else:
+                raise ValueError(f'Unknown key value provided: {key}')
+
+        if label == 'None':
+            raise ValueError('No label was provided for the BC! Cannot continue')
+        if bc is None:
+            raise ValueError('The provided BC is None! Cannot continue')
+
+        if isinstance(self.bc, dict):
+            if self.num_components == 0:
+                self.bc[label] = bc
+            else:
+                self.bc = [self.bc]
+                for _ in range(1, self.num_components):
+                    self.bc.append({})
+                self.bc[id][label] = bc
+        else:
+            self.bc[id][label] = bc
 
     def DDT(self, dt: float = 1., weight='pore.volume', include=None):
         r"""
@@ -808,4 +864,4 @@ class MulticomponentTools:
         elif type == 'Defect':
             return defect_func(c).reshape((-1, 1))
         else:
-            raise ('Unknown type for numerical differentiation')
+            raise ValueError('Unknown type for numerical differentiation')

@@ -6,9 +6,7 @@ import numpy as np
 import scipy
 from ToolSet import MulticomponentTools
 
-
-def run(output:bool = True):
-
+def run(output: bool = True):
     Nx = 100
     Ny = 1
     Nz = 1
@@ -25,19 +23,17 @@ def run(output:bool = True):
     network.regenerate_models()
 
     c = np.zeros((network.Np, Nc))
-    c[1, 0] = 1.
-    c[-2, 1] = 1.
 
     mt = MulticomponentTools(network=network, num_components=Nc)
+    mt.SetBC(id=0, label='left', bc={'value': 1.})
+    mt.SetBC(id=1, label='right', bc={'value': 1.})
+
     x = np.ndarray.flatten(c).reshape((c.size, 1))
     dx = np.zeros_like(x)
 
     v = [0.1, -0.1]
     dt = 0.01
     tsteps = range(1, int(5./dt))
-    sol = np.zeros_like(c)
-    sol = np.tile(sol, reps=len(tsteps)+1)
-    pos = 0
     tol = 1e-6
     max_iter = 10
     time = dt
@@ -50,38 +46,30 @@ def run(output:bool = True):
     fluxes[:, 0] = v[0]
     fluxes[:, 1] = v[1]
 
-    # construct multiple upwind matrices (directed networks)
-    c_up_float = mt._construct_upwind(fluxes=v[0])
-    c_up_float_list = mt._construct_upwind(fluxes=v)
-    c_up_array_single = mt._construct_upwind(fluxes=fluxes[:, 0])
-    c_up_arrays_mult = mt.Upwind(fluxes=fluxes)
-
-    # check the implementations
-    if scipy.sparse.find(c_up_float_list - c_up_arrays_mult)[0].size > 0:
-        raise ('matrices are inconsistent, check implementation')
-    if scipy.sparse.find(c_up_float - c_up_array_single)[0].size > 0:
-        # note that we don't do validation here
-        raise ('matrices are inconsistent, check implementation')
-
-    c_up = c_up_arrays_mult
+    c_up = mt.Upwind(fluxes=fluxes)
     div = mt.Divergence(weights=A_flux)
     ddt = mt.DDT(dt=dt)
 
     J = ddt + div(fluxes, c_up)
+    J = mt.ApplyBC(A=J, x=x)
 
-    mass_init = np.sum(x)
-    peakpos_init = (np.argmax(c[:, 0]), np.argmax(c[:, 1]))
     success = True
-    for t in tsteps:
+    for n in range(len(tsteps)):
         x_old = x.copy()
-        pos += 1
+        if n == 100:
+            # update BC
+            mt.SetBC(id=0, label='left', bc={'value': 0.})
+            mt.SetBC(id=1, label='right', bc={'value': 0.})
+            # no need to update the matrix
 
         G = J * x - ddt * x_old
+        G = mt.ApplyBC(b=G, x=x, type='Defect')
         for i in range(max_iter):
             last_iter = i
             dx[:] = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
             x = x + dx
             G = J * x - ddt * x_old
+            G = mt.ApplyBC(b=G, x=x, type='Defect')
             G_norm = np.linalg.norm(np.abs(G), ord=2)
             if G_norm < tol:
                 break
@@ -89,15 +77,11 @@ def run(output:bool = True):
             print(f'WARNING: the maximum iterations ({max_iter}) were reached!')
 
         c = x.reshape(-1, Nc)
-        mass = np.sum(x)
-        peakpos = (np.argmax(c[:, 0]), np.argmax(c[:, 1]))
-        mass_err = (mass_init - mass)/mass_init
-        peakpos_err = [int(peakpos[n]-(peakpos_init[n] + pos * dt * v[n]/spacing)) for n in range(Nc)]
-        success &= np.abs(mass_err) < 1e-12
-        success &= np.max(np.abs(peakpos_err)) < 2
+        success &= c[0, 0] == 1. if n < 100 else c[0, 0] == 0.
+        success &= c[-1, 1] == 1. if n < 100 else c[-1, 1] == 0.
         if output:
-            print(f'{t}/{len(tsteps)} - {time}: {last_iter + 1} it -\
-                G [{G_norm:1.2e}] mass [{mass_err:1.2e}] peak-err [{peakpos_err}]')
+            print(f'{n}/{len(tsteps)} - {time}: {last_iter + 1} it -\
+                G [{G_norm:1.2e}]')
         time += dt
 
     return success

@@ -4,6 +4,7 @@ import test_DiffusionConvection as DiffusionConvection
 import test_DiluteFlow as DiluteFlow
 import test_Outflow_Convection as OutflowConvection
 import test_RateBC_Convection as RateBCConvection
+import test_VariableBC as VariableBC
 
 
 success_all = True
@@ -35,6 +36,11 @@ if not success:
 success = RateBCConvection.run(output=False)
 if not success:
     print('RateBCConvection test failed')
+    success_all = False
+
+success = VariableBC.run(output=False)
+if not success:
+    print('VariableBC test failed')
     success_all = False
 
 if success_all:
