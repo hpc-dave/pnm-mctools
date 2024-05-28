@@ -416,8 +416,16 @@ class MulticomponentTools:
             return include
 
         if include is not None:
+            if isinstance(include, int):
+                include = [include]
+            elif not isinstance(include, list):
+                raise ValueError('provided include is neither integer nor list!')
             return include
         else:
+            if isinstance(exclude, int):
+                exclude = [exclude]
+            elif not isinstance(exclude, list):
+                raise ValueError('provided exclude is neither integer nor list!')
             return [n for n in range(self.num_components) if n not in exclude]
 
     def _construct_ddt(self, dt: float, weight='pore.volume', include=None, exclude=None):
@@ -475,21 +483,27 @@ class MulticomponentTools:
         ddt = scipy.sparse.spdiags(data=[dVdt.ravel()], diags=[0])
         return ddt
 
-    def _construct_grad(self, include=None):
-        """
+    def _construct_grad(self, include=None, exclude=None):
+        r"""
         Constructs the gradient matrix
 
-        Args:
-            self: network with geometric information
-            include (list): list of component IDs to include, all if set to None
+        Parameters
+        ----------
+            include: list
+                list of component IDs to include, all if set to None
+            exclude: list
+                list of component IDs to exclude, no impact if include is set
 
-        Returns:
+        Returns
+        -------
             Gradient matrix
 
-        Notes:
+        Notes
+        -----
             The direction of the gradient is given by the connections specified in the network,
             mores specifically from conns[:, 0] to conns[:, 1]
         """
+        include = self._get_include(include, exclude)
         network = self.network
         num_components = self.num_components
 
@@ -550,8 +564,8 @@ class MulticomponentTools:
                 fluxes = fluxes.multiply(args[i])
         return fluxes
 
-    def _construct_div(self, weights=None, custom_weights: bool = False, include=None):
-        """
+    def _construct_div(self, weights=None, custom_weights: bool = False, include=None, exclude=None):
+        r"""
         Constructs divergence matrix
 
         Parameters
@@ -562,12 +576,31 @@ class MulticomponentTools:
             identifier, if the weights are customized and shall not be manipulated, extended
             or in any other way made fit with the expected size
         include: list
-            identifer, which components should be included in the divergence, all other
+            identifier, which components should be included in the divergence, all other
             rows will be set to 0
+        exclude: list
+            identifier, which components shall be exluded, respectively which rows shall be
+            set to 0. Without effect if include is specified
 
-        Returns:
+        Returns
+        -------
             Divergence matrix
+
+        Notes
+        -----
+            For the discretization of the divergence, the flux in each is assumed to be directed
+            according to underlying specification of the throats in the network. More specifically,
+            the flux is directed according the to the 'throat.conn' array, from the pore in column 0 to the pore
+            in column 1, e.g. if the throat.conn array looks like this:
+            [
+                [0, 1]
+                [1, 2]
+                [2, 3]
+            ]
+            Then the fluxes are directed from pore 0 to 1, 1 to 2 and 2 to 3. A potential network could be:
+            (0) -> (1) -> (2) -> (3)
         """
+        include = self._get_include(include, exclude)
         network = self.network
         num_components = self.num_components
         _weights = None
@@ -619,20 +652,21 @@ class MulticomponentTools:
 
         return div
 
-    def _construct_upwind(self, fluxes, include=None):
+    def _construct_upwind(self, fluxes, include=None, exclude=None):
         r"""
         Constructs a [Nt, Np] matrix representing a directed network based on the upwind
         fluxes
 
         Parameters
         ----------
-        fluxes : any
+        fluxes: any
             fluxes which determine the upwind direction, see below for more details
-        include : list
+        include: list
             a list of integers to specify for which components the matrix should be constructed,
             for components which are not listed here, the rows will be 0. If 'None' is provided,
             all components will be selected
-
+        exclude: list
+            Inverse of include, without effect if include is specified
         Returns
         -------
         A [Nt, Np] sized CSR-matrix representing a directed network
@@ -652,6 +686,7 @@ class MulticomponentTools:
                             multicomponent coupling, where fluxes can be opposed to each other within
                             the same throat
         """
+        include = self._get_include(include, exclude)
         num_components = self.num_components
         network = self.network
         if num_components == 1:
@@ -783,7 +818,7 @@ class MulticomponentTools:
         else:
             self.bc[id][label] = bc
 
-    def DDT(self, dt: float = 1., weight='pore.volume', include=None):
+    def DDT(self, dt: float = 1., weight='pore.volume', include=None, exclude=None):
         r"""
         Computes partial time derivative matrix
 
@@ -794,21 +829,22 @@ class MulticomponentTools:
         weight: any
             a weight which can be applied to the time derivative, usually that should be
             the volume of the computational cell
-        include:
+        include: list
             an ID or list of IDs which should be included in the matrix, if 'None' is provided,'
             all values will be used
-
+        exclude: list
+            inverse of include, without effect if include is specified
         Returns
         -------
         Matrix in CSR format
         """
-        include = [include] if isinstance(include, int) else include
+        include = self._get_include(include, exclude)
         key = self._convert_include_to_key(include)
         if key not in self._ddt:
             self._ddt[key] = self._construct_ddt(dt=dt, weight=weight, include=include)
         return self._ddt[key]
 
-    def Gradient(self, include=None):
+    def Gradient(self, include=None, exclude=None):
         r"""
         Computes a gradient matrix
 
@@ -817,12 +853,13 @@ class MulticomponentTools:
         include:
             int or list of ints with IDs to include, if 'None' is provided
             all IDs will be included
-
+        exlude:
+            inverse of include, without effect if include is specified
         Returns
         -------
         a gradient matrix in CSR-format
         """
-        include = [include] if isinstance(include, int) else include
+        include = self._get_include(include, exclude)
         key = self._convert_include_to_key(include)
         if key not in self._grad:
             self._grad[key] = self._construct_grad(include=include)
@@ -841,24 +878,110 @@ class MulticomponentTools:
         """
         return self._compute_flux_matrix(*args)
 
-    def Divergence(self, weights=None, custom_weights: bool = False, include=None):
-        include = [include] if isinstance(include, int) else include
+    def Divergence(self, weights=None, custom_weights: bool = False, include=None, exclude=None):
+        r"""
+        Constructs divergence matrix
+
+        Parameters
+        ----------
+        weights: any
+            weights for each connection, if 'None' all values will be set to 1
+        custom_weights: bool
+            identifier, if the weights are customized and shall not be manipulated, extended
+            or in any other way made fit with the expected size
+        include: list
+            identifier, which components should be included in the divergence, all other
+            rows will be set to 0
+        exclude: list
+            identifier, which components shall be exluded, respectively which rows shall be
+            set to 0. Without effect if include is specified
+
+        Returns
+        -------
+            Divergence matrix
+
+        Notes
+        -----
+            For the discretization of the divergence, the flux in each is assumed to be directed
+            according to underlying specification of the throats in the network. More specifically,
+            the flux is directed according the to the 'throat.conn' array, from the pore in column 0 to the pore
+            in column 1, e.g. if the throat.conn array looks like this:
+            [
+                [0, 1]
+                [1, 2]
+                [2, 3]
+            ]
+            Then the fluxes are directed from pore 0 to 1, 1 to 2 and 2 to 3. A potential network could be:
+            (0) -> (1) -> (2) -> (3)
+        """
+        include = self._get_include(include, exclude)
         key = self._convert_include_to_key(include)
         if key not in self._div:
             self._div[key] = self._construct_div(weights=weights, custom_weights=custom_weights)
         return self._div[key]
 
-    def Upwind(self, fluxes, include=None):
-        include = [include] if isinstance(include, int) else include
+    def Upwind(self, fluxes, include=None, exclude=None):
+        r"""
+        Constructs a [Nt, Np] matrix representing a directed network based on the upwind
+        fluxes
+
+        Parameters
+        ----------
+        fluxes: any
+            fluxes which determine the upwind direction, see below for more details
+        include: list
+            a list of integers to specify for which components the matrix should be constructed,
+            for components which are not listed here, the rows will be 0. If 'None' is provided,
+            all components will be selected
+        exclude: list
+            Inverse of include, without effect if include is specified
+        Returns
+        -------
+        A [Nt, Np] sized CSR-matrix representing a directed network
+
+        Notes
+        -----
+        The direction of the fluxes is directly linked with the storage of the connections
+        inside the OpenPNM network. For more details, refer to the 'create_incidence_matrix' method
+        of the network module.
+        The resulting matrix IS NOT SCALED with the fluxes and can also be used for determining
+        upwind interpolated values.
+        The provided fluxes can either be:
+            int/float - single value
+            list/numpy.ndarray - with size num_components applies the values to each component separately
+            numpy.ndarray - with size Nt applies the fluxes to each component by throat: great for convection
+            numpy.ndarray - with size Nt * num_components is the most specific application for complex
+                            multicomponent coupling, where fluxes can be opposed to each other within
+                            the same throat
+        """
+        include = self._get_include(include, exclude)
         key = self._convert_include_to_key(include)
         if key not in self._upwind:
             self._upwind[key] = self._construct_upwind(fluxes=fluxes, include=include)
         return self._upwind[key]
 
     def ApplyBC(self, A=None, x=None, b=None, type='Jacobian'):
+        r"""
+        A wrapper around the generic ApplyBC function, which provides the network and
+        BCs stored in the object
+
+        Parameters
+        ----------
+        A: matrix
+            The matrix/jacobian of the system
+        x: vector
+            initial guess / solution vector
+        b: vector
+            RHS of the LES
+        type: str
+            type of the system, allows some specific treatment e.g. for Newton iterations.
+        """
         return ApplyBC(self.network, bc=self.bc, A=A, x=x, b=b, type=type)
 
     def NumericalDifferenciation(self, c, defect_func, dc: float = 1e-6, mem_opt: str = 'full', type: str = 'Jacobian'):
+        r"""
+        Wrapper around the NumericalDifferentiation function. For Details refer to the function itself
+        """
         if type == 'Jacobian':
             return NumericalDifferentiation(c=c, defect_func=defect_func, dc=dc, type=mem_opt)
         elif type == 'Defect':
