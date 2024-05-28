@@ -104,7 +104,7 @@ def _apply_rate_bc(pore_labels, bc, num_components: int, n_c: int, A, x, b, type
     else:
         values = value
 
-    b[row_aff] -= values
+    b[row_aff] -= values.reshape((-1, 1))
 
     return A, b
 
@@ -230,6 +230,58 @@ def ComputeRateForBC(bc, phi, rate_old=None):
 
 
 def ApplyBC(network, bc, A=None, x=None, b=None, type='Jacobian'):
+    r"""
+    Manipulates the provided Matrix and/or rhs vector according to the boundary conditions
+
+    Parameters
+    ----------
+    network: any
+        OpenPNM network with geometrical information
+    bc: list/dict
+        Boundary conditions in the form of a dictionary, where each label is associated with a certain type of BC
+        In the case of multiple components, a list of dicts needs to be provided where the position in the list
+        determines the component ID that the boundary condition is associated with
+    A: matrix
+        [Np, Np] Matrix to be manipulated, if 'None' is provided this will skipped
+    x: array_like
+        [Np, 1] numpy array with initial guess
+    b: array_like
+        [Np, 1] numpy array with rhs values
+    type: str
+        specifies the type of manipulation, especially for the prescribed value the enforcement differs between
+        direct substitution and Newton-iterations
+
+    Returns
+    -------
+    Return depends on the provided data, if A and b are not 'None', both are returned. Otherwise either A or b are returned.
+
+    Notes
+    -----
+    Currently supported boundary conditions are:
+        'noflow'     - not manipulation required
+        'prescribed' - prescribes a value in the specified pore
+        'value'      - alias for 'prescribed'
+        'rate'       - adds a rate value to the pore
+        'outflow'    - labels pore as outflow and interpolates value from connected pores
+
+    The boundary conditions have to be provided by means of a list where each position in the list is associated with a
+    component in the system. Each element in the list has to be a dictionary, where the key refers to the label of pores
+    that the boundary condition is associated with. The value of the dictionary is again a dictionary with the type of
+    boundary condition and the value.
+    For single components, only the dictionary may be given as input parameter
+    A code example:
+
+    # The system of DGLs models 3 components and the network has two boundary regions 'inlet' and 'outlet'
+    Nc = 3
+    bc = [{}] * Nc
+    bc[0]['inlet']  = {'prescribed': 1.}     # Component 0 has a prescribed value at the inlet with the value 1
+    bc[0]['outlet'] = {'outflow'}            # at the outlet the species is allowed to leave the system (technically a set, any provided value will either way be ignored)
+    bc[1]['inlet']  = {'rate': 0.1}          # Component 1 has an inflow rate with value 0.1
+    bc[1]['outlet'] = {'outflow'}            # Component 1 is also allowed to leave the system
+    bc[2]['inlet']  = {'noflow'}             # Component 2 is not allowed to enter of leave the system, technically this is not required to specify but the verbosity helps to address setup errors early on
+    bc[2]['outlet'] = {'noflow'}             # Component 2 may also not leave at the outlet, e.g. because it's adsorbed to the surface
+
+    """
     if len(bc) == 0:
         print(f'{GetLineInfo()}: No boundary conditions were provided, consider removing function altogether!')
 
@@ -294,6 +346,33 @@ def ApplyBC(network, bc, A=None, x=None, b=None, type='Jacobian'):
 
 
 class MulticomponentTools:
+    r"""
+    Object with convenient methods for developing multicomponent transport models with OpenPNM pore networks.
+
+    Parameters
+    ----------
+    network: OpenPNM network
+        network with the geometrical information
+    num_components: int
+        number of components that shall be modelled with this toolset
+    bc: list
+        list of boundary conditions for each component. May be 'None', then no
+        boundary conditions will be applied
+
+    Notes
+    -----
+
+    A multicomponent model is expected to adhere to the conservation law:
+    \[f
+        \frac{\partial}{\partial t}\phi + \nabla \cdot J - S = 0
+    \]
+    with the extensive variable $\phi$, time $t$, flux $J$ and source $S$. This toolset provides convenient
+    functions to compute gradients, divergences, time derivatives and fluxes. In the case of multiple coupled
+    components, the matrix is organized block-wise so the rows of coupled components computed at a single node
+    (or pore respectively) are located adjacent to each other.
+    Note, that here the term 'divergence' is used, although contemporary literature employs sums and references
+    Kirchhoff's law. For simplicity, this notation is dropped and only 'divergence' used.
+    """
     def __init__(self, network, num_components: int = 1, bc=None):
         self.network = network
         self.bc = bc
@@ -303,7 +382,30 @@ class MulticomponentTools:
         self._div = {}
         self._upwind = {}
 
-    def _construct_ddt(self, dt: float, weight='pore.volume', include=None):
+    def _get_include(self, include, exclude):
+        r"""
+        computes the include list from a list of excluded components
+
+        Parameters
+        ----------
+        include: list
+            list of included components
+        exclude: list
+            list of components to exclude
+
+        Returns
+        -------
+        list of included parameters
+        """
+        if include is None and exclude is None:
+            return include
+
+        if include is not None:
+            return include
+        else:
+            return [n for n in range(self.num_components) if n not in exclude]
+
+    def _construct_ddt(self, dt: float, weight='pore.volume', include=None, exclude=None):
         r"""
         Computes the discretized matrix for the partial time derivative
 
@@ -332,6 +434,9 @@ class MulticomponentTools:
         Note that here the integrated variable is ommitted in the description, as it will be provided
         either by the solution vector for implicit treatment and by the field for explicit components
         """
+
+        include = self._get_include(include, exclude)
+
         network = self.network
         num_components = self.num_components
 
@@ -405,6 +510,17 @@ class MulticomponentTools:
             return scipy.sparse.csr_matrix(grad)
 
     def _compute_flux_matrix(self, *args):
+        r"""
+        computes matrix of size [Np*Nc, Nt*Nc], where all arguments are multiplied with the last argument
+
+        Parameters
+        ----------
+        Factors to multiply with the final argument, where the final argument is a [Nt*Nc, Np*Nc] matrix
+
+        Returns
+        -------
+        [Np*Nc, Nt*Nc] sized matrix
+        """
         network = self.network
         Nc = self.num_components
         fluxes = args[-1].copy()
@@ -423,10 +539,16 @@ class MulticomponentTools:
         """
         Constructs divergence matrix
 
-        Args:
-            network (OpenPNM network): network with geometric information
-            weights (array_like of size Nt or 2*Nt): reused weights for optimization, e.g. throat area
-            format (string): identifier for the target format
+        Parameters
+        ----------
+        weights: any
+            weights for each connection, if 'None' all values will be set to 1
+        custom_weights: bool
+            identifier, if the weights are customized and shall not be manipulated, extended
+            or in any other way made fit with the expected size
+        include: list
+            identifer, which components should be included in the divergence, all other
+            rows will be set to 0
 
         Returns:
             Divergence matrix
@@ -525,7 +647,7 @@ class MulticomponentTools:
                 _fluxes = fluxes
             else:
                 raise ('invalid flux dimensions')
-            weights = np.append(-(_fluxes < 0).astype(float), _fluxes > 0)
+            weights = np.append((_fluxes < 0).astype(float), _fluxes > 0)
             return np.transpose(network.create_incidence_matrix(weights=weights, fmt='csr'))
         else:
             if include is None:
