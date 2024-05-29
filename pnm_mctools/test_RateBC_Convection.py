@@ -24,7 +24,6 @@ def run(output: bool = True):
     network.regenerate_models()
 
     c = np.zeros((network.Np, Nc))
-    c_old = c.copy()
     bc_0, bc_1 = {}, {}
     bc_0['left'] = {'rate': rate_in}
     bc_1['right'] = {'rate': rate_in}
