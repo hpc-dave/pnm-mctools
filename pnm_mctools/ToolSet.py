@@ -4,7 +4,7 @@ import scipy.sparse
 import inspect
 try:
     from . import NumericalDifferentiation
-except:
+except ImportError:
     import NumericalDifferentiation
 
 
