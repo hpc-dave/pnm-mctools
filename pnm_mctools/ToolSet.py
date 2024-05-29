@@ -203,7 +203,7 @@ def ComputeRateForBC(bc, phi, rate_old=None):
     if bc is not None:
         # My brain was pretty cooked when writing this function, be sure to test it
         # before applying!
-        raise ValueError('Untested!')
+        raise NotImplementedError('Untested!')
     rate = bc['rate']
     if rate_old is None:
         if isinstance(rate, float) or isinstance(rate, int):
