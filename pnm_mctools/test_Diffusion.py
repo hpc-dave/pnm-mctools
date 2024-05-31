@@ -100,5 +100,4 @@ def run(output: bool = True):
                 err [{np.max(np.abs(err[:, 0])):1.2e} {np.max(np.abs(err[:, 1])):1.2e}]')
         time += dt
 
-    print('finished')
     return success

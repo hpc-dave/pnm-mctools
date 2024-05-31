@@ -10,7 +10,7 @@ def AdsorptionSingleComponent(c,
                               dilute: int, adsorbed: int,
                               y_max, Vp, a_v, ftheta: Callable,
                               k_r: float = 1e6, type: str = 'Jacobian',
-                              exclude=None):
+                              exclude=None, dc=1e-6):
     r"""
     Provides Jacobian and Defect for single component adsorption by means of a pseudo-reaction
     using numerical differentiation
@@ -82,7 +82,7 @@ def AdsorptionSingleComponent(c,
     if type == 'Defect':
         b = Defect(c)
     else:
-        A, b = NumericalDifferentiation(c, defect_func=Defect, exclude=exclude)
+        A, b = NumericalDifferentiation(c, defect_func=Defect, exclude=exclude, dc=dc)
 
     V_pore = np.hstack([V_pore for _ in range(Nc)]).reshape((-1, 1))
     b *= V_pore
