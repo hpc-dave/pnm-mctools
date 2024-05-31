@@ -1,6 +1,4 @@
 import numpy as np
-import scipy
-import scipy.sparse
 from typing import Callable
 try:
     from .NumericalDifferentiation import NumericalDifferentiation
@@ -58,6 +56,9 @@ def AdsorptionSingleComponent(c,
 
         r_v = -a_v * r_{ad} ~\mathrm{in mol/(m^3 s)}
 
+    Here a word of advice: The numerical differentiation is expensive, therefore it is not recommended to compute
+    the Jacobian at each Newton-iteration. However, using only the Defect requires more iterations, so careful
+    optimization is required by choosing between the two options!
     """
     A, b = None, None
     Np = c.shape[0]
