@@ -1,6 +1,7 @@
 import numpy as np
 import scipy
 import scipy.sparse
+from typing import Callable
 try:
     from . import NumericalDifferentiation
 except ImportError:
@@ -92,12 +93,42 @@ def LinearReaction(network, num_components: int, k, educt: int, product=None, we
     return A.tocsr()
 
 
-def LinearAdsorption(network, dilute, adsorbed, num_components: int, weight='pore.volume', K_ads=1., k_reac=1.):
+def LinearAdsorption(network, dilute: int, adsorbed: int, num_components: int, weight='pore.volume', K_ads=1.):
+    r"""
+    Computes a matrix to include linear adsorption in the system
+
+    Parameters
+    ----------
+    network: any
+        OpenPNM network with geometrical information
+    dilute: int
+        dilute component
+    adsorbed: int
+        adsorbed component
+    num_components: int
+        number of components in the system
+    weight: any
+        weigth or list of weights which will be assigned to the affected rows
+    K_ads
+        equilibrium coefficient between the dilute and adsorbed phase
+
+    Returns
+    -------
+    CSR-matrix of size [Np*Nc, Np*Nc]
+
+    Notes
+    -----
+    This implementation assumes that the dilute and adsorbed species are two separate components and
+    generates the equilibrium by a pseudo-reaction term. The pseudo reaction rate is formulated as:
+        r = k * (c*  - c)
+    with the equilibrium concentration dependent on the equilibrium constant:
+        K = c_ads / c*  --> c* = K / c_ads
+    """
     Nc = num_components
     r_ads_0 = np.zeros((network.Np, 2), dtype=float)
     r_ads_1 = np.zeros_like(r_ads_0)
-    r_ads_0[:, 0], r_ads_0[:, 1] = -k_reac * K_ads, k_reac
-    r_ads_1[:, 0], r_ads_1[:, 1] = k_reac * K_ads, -k_reac
+    r_ads_0[:, 0], r_ads_0[:, 1] = -K_ads, 1.
+    r_ads_1[:, 0], r_ads_1[:, 1] = K_ads, -1.
 
     if weight is not None:
         weights = weight if isinstance(weight, list) else [weight]
@@ -125,9 +156,43 @@ def LinearAdsorption(network, dilute, adsorbed, num_components: int, weight='por
     return A.tocsr()
 
 
-# class Network(dict):
-#     def __init__(self):
-#         self.Np = 10
+def AdsorptionSingleComponent(network, c, num_components: int, dilute: int, adsorbed: int, y_max, Vp, a_v, K: Callable, k_r: float = 1e6, type: str = 'Jacobian'):
+
+    A, b = None, None
+    Np = network.Np
+    Nc = num_components
+    V_pore = (np.ones((Np, 1), dtype=float) if Vp is None else Vp.reshape((-1, 1)))
+    rows = np.arange(dilute, Np * Nc, Nc, dtype=int).reshape((-1))
+    delta_n = adsorbed - dilute
+
+    def Defect(c):
+        c_f = c[:, dilute].reshape((-1, 1))
+        c_ads = c[:, adsorbed].reshape((-1, 1))
+        theta = c_ads / y_max
+        theta_eq = K(c_f, c_ads)
+        r_ads = k_r * y_max * (theta_eq - theta)
+        r_f = -a_v * r_ads
+        G = np.zeros((Np * Nc, 1), dtype=float)
+        G[rows, :] = r_f
+        G[rows + delta_n, :] = r_ads
+        return G
+
+    if type == 'Defect':
+        b = Defect(c)
+    else:
+        A, b = NumericalDifferentiation.NumericalDifferentiation(c, defect_func=Defect)
+
+    V_pore = np.hstack([V_pore for _ in range(num_components)]).reshape((-1, 1))
+    b *= V_pore
+    if A is not None:
+        A = A.multiply(V_pore)
+
+    return A, b
+
+
+class Network(dict):
+    def __init__(self):
+        self.Np = 10
 
 
 # network = Network()
@@ -138,4 +203,23 @@ def LinearAdsorption(network, dilute, adsorbed, num_components: int, weight='por
 # a_V = np.ones((network.Np, 2), dtype=float)
 # a_V[:, ads] = 0.1
 
-# A = LinearAdsorption(network=network, dilute=1, adsorbed=0, num_components=2, K_ads=0.5, weight=['pore.volume', a_V])
+# # A = LinearAdsorption(network=network, dilute=1, adsorbed=0, num_components=3, K_ads=0.5, weight=['pore.volume', a_V])
+
+# c = np.zeros((network.Np, 2))
+# c[:, 0] = 1.
+
+# def K(c_f, c_ads):
+#     return c_f * 0.1
+
+# J_dt = scipy.sparse.eye(network.Np*2)
+# x = c.reshape((-1, 1))
+# x_prev = x.copy()
+# for _ in range(10):
+#     J_ads, G_ads = AdsorptionSingleComponent(network=network, c=c, dilute=0, adsorbed=1, num_components=2, y_max=1, Vp=None, a_v=1, K=K)
+#     J = J_dt + J_ads
+#     G = J_dt * (x - x_prev) + G_ads
+#     dx = scipy.sparse.linalg.spsolve(J, -G)
+#     x += dx.reshape(x.shape)
+#     c = x.reshape(c.shape)
+
+# print('finished')

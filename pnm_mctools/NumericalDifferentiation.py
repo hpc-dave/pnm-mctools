@@ -1,6 +1,7 @@
 import numpy as np
 import scipy
 import time
+from inspect import signature
 
 
 def _compute_dc(x_0, dc_value: float):
@@ -112,10 +113,20 @@ def _apply_numerical_differentiation_full(c, defect_func, dc: float = 1e-6):
     x_0 = c.reshape(-1, 1)
     dc = _compute_dc(x_0, dc)
 
+    num_param = len(signature(defect_func)._parameters)
+    single_param = num_param == 1
+    if num_param == 0:
+        raise ValueError('The provided defect function does not take any arguments!')
+    elif num_param > 2:
+        raise ValueError('Number of arguments for defect function is larger than 2!')
+
     for col in range(num_cols):
         x = x_0.copy()
         x[col] += dc[col]
-        G_loc = defect_func(x.reshape(c.shape), col).reshape((-1, 1))
+        if single_param:
+            G_loc = defect_func(x.reshape(c.shape)).reshape((-1, 1))
+        else:
+            G_loc = defect_func(x.reshape(c.shape), col).reshape((-1, 1))
         J[:, col] = ((G_loc-G_0)/dc[col]).reshape((-1))
     J = scipy.sparse.csr_matrix(J)
     return J, G_0
@@ -154,7 +165,7 @@ def NumericalDifferentiation(c, defect_func, dc: float = 1e-6, type: str = 'full
     if type == 'full':
         return _apply_numerical_differentiation_full(c=c, defect_func=defect_func, dc=dc)
     elif type == 'low_mem':
-        return _apply_numerical_differentiation_full(c=c, defect_func=defect_func, dc=dc)
+        return _apply_numerical_differentiation_lowmem(c=c, defect_func=defect_func, dc=dc)
     else:
         raise (f'Unknown type: {type}')
 
