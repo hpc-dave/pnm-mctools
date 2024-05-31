@@ -474,11 +474,11 @@ class MulticomponentTools:
                 for id, inst in enumerate(bc):
                     if not isinstance(inst, dict):
                         raise ValueError('the provided entry does not conform to the format {label: bc}')
-                    label, bc = list(inst.keys())[0], list(inst.values())[0]
-                    self.SetBC(id=id, label=label, bc=bc)
+                    for label, bc_l in inst.items():
+                        self.SetBC(id=id, label=label, bc=bc_l)
             elif isinstance(bc, dict):
-                label, bc = list(bc.keys())[0], list(bc.values())[0]
-                self.SetBC(label=label, bc=bc)
+                for label, bc_l in bc.items():
+                    self.SetBC(label=label, bc=bc_l)
             else:
                 raise ValueError('incompatible boundary condition format!')
 
@@ -882,6 +882,10 @@ class MulticomponentTools:
                     bc = {'prescribed': value}
                 elif isinstance(value, dict):
                     bc = value
+                elif isinstance(value, set):
+                    for e in value:
+                        if isinstance(e, str) and e == 'outflow':
+                            bc = {'outflow': None}
                 else:
                     raise ValueError(f'The provided BC ({bc}) cannot be converted to a standard bc')
             else:
