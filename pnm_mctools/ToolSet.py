@@ -278,11 +278,11 @@ def ApplyBC(network, bc, A=None, x=None, b=None, type='Jacobian'):
     Nc = 3
     bc = [{}] * Nc
     bc[0]['inlet']  = {'prescribed': 1.}     # Component 0 has a prescribed value at the inlet with the value 1
-    bc[0]['outlet'] = {'outflow'}            # at the outlet the species is allowed to leave the system (technically a set, any provided value will either way be ignored)
+    bc[0]['outlet'] = {'outflow'}            # at the outlet the species is allowed to leave the system (technically a set, any provided value will either way be ignored)  # noqa: E501
     bc[1]['inlet']  = {'rate': 0.1}          # Component 1 has an inflow rate with value 0.1
     bc[1]['outlet'] = {'outflow'}            # Component 1 is also allowed to leave the system
-    bc[2]['inlet']  = {'noflow'}             # Component 2 is not allowed to enter of leave the system, technically this is not required to specify but the verbosity helps to address setup errors early on
-    bc[2]['outlet'] = {'noflow'}             # Component 2 may also not leave at the outlet, e.g. because it's adsorbed to the surface
+    bc[2]['inlet']  = {'noflow'}             # Component 2 is not allowed to enter of leave the system, technically this is not required to specify but the verbosity helps to address setup errors early on  # noqa: E501
+    bc[2]['outlet'] = {'noflow'}             # Component 2 may also not leave at the outlet, e.g. because it's adsorbed to the surface  # noqa: E501
 
     """
     if len(bc) == 0:
@@ -871,7 +871,7 @@ class MulticomponentTools:
                 if value < 0:
                     raise ValueError(f'The provided ID ({value}) has to be positive!')
                 if value >= self.num_components:
-                    raise ValueError(f'The provided ID ({value}) exceeds the number of components ({self.num_components})!')
+                    raise ValueError(f'The provided ID ({value}) exceeds the number of components ({self.num_components})!')  # noqa: E501
                 id = value
             elif key == 'label':
                 if not isinstance(value, str):
