@@ -23,6 +23,7 @@ def Linear(c_f, K):
     """
     return c_f * K
 
+
 def Langmuir(c_f, K, y_max):
     r""""
     Single component Langmuir adsorption model
