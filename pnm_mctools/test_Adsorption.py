@@ -4,14 +4,14 @@ import scipy.sparse
 import numpy as np
 import scipy
 from ToolSet import MulticomponentTools
-from Reactions import AdsorptionSingleComponent
+from Adsorption import AdsorptionSingleComponent
 
 
 def run(output: bool = True):
     Nx = 10
     Ny = 1
     Nz = 1
-    Nc = 2
+    Nc = 3
     spacing = 1./Nx
 
     # get network
@@ -24,11 +24,12 @@ def run(output: bool = True):
     # adsorption data
     ads = 0
     dil = 1
-    def K(c_f, c_ads):
-        return c_f
-    ymax = np.full((network.Np, 1), fill_value=1., dtype=float)
-    a_V = np.ones((network.Np, 1), dtype=float)
-    a_V[:] = 1.
+
+    def ftheta(c_f, c_ads):
+        return c_f*0.1
+
+    ymax = np.full((network.Np, 1), fill_value=99., dtype=float)
+    a_V = np.full((network.Np, 1), fill_value=5., dtype=float)
 
     c = np.zeros((network.Np, Nc))
     c[:, dil] = 1.
@@ -44,15 +45,19 @@ def run(output: bool = True):
     success = True
     x_old = x.copy()
 
-    def ComputeSystem(x, c_l):
-        J_ads, G_ads = AdsorptionSingleComponent(network=network, c=c_l,
-                                                 dilute=dil, adsorbed=ads, num_components=Nc,
-                                                 y_max=ymax, Vp=network['pore.volume'], a_v=a_V, K=K)
-        J = ddt + J_ads
+    def ComputeSystem(x, c_l, type):
+        J_ads, G_ads = AdsorptionSingleComponent(c=c_l,
+                                                 dilute=dil, adsorbed=ads,
+                                                 y_max=ymax, Vp=network['pore.volume'],
+                                                 a_v=a_V, ftheta=ftheta, exclude=2,
+                                                 type=type)
         G = ddt * (x - x_old) + G_ads
+        if type == 'Defect':
+            return G
+        J = ddt + J_ads
         return J, G
 
-    J, G = ComputeSystem(x, c)
+    J, G = ComputeSystem(x, c, 'Jacobian')
 
     m_0 = c.copy()
     m_0[:, dil] *= network['pore.volume']
@@ -62,7 +67,7 @@ def run(output: bool = True):
         dx = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
         x = x + dx
         c = x.reshape(c.shape)
-        J, G = ComputeSystem(x, c)
+        G = ComputeSystem(x, c, 'Defect')
         G_norm = np.linalg.norm(np.abs(G), ord=2)
         if G_norm < tol:
             break
@@ -78,5 +83,3 @@ def run(output: bool = True):
             err [{err:1.2e}]')
 
     return success
-
-run()

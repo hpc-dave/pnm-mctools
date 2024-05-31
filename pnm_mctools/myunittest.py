@@ -5,6 +5,7 @@ import test_DiluteFlow as DiluteFlow
 import test_Outflow_Convection as OutflowConvection
 import test_RateBC_Convection as RateBCConvection
 import test_VariableBC as VariableBC
+import test_Adsorption as Adsorption
 
 
 success_all = True
@@ -41,6 +42,11 @@ if not success:
 success = VariableBC.run(output=False)
 if not success:
     print('VariableBC test failed')
+    success_all = False
+
+success = Adsorption.run(output=False)
+if not success:
+    print('Adsorption test failed')
     success_all = False
 
 if success_all:

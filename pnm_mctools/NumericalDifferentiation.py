@@ -231,5 +231,3 @@ def _testing():
         print(f'low mem: {(toc-tic)*1e-9:1.2e} s - max error: {err}')
 
     print('finished')
-
-_testing()
