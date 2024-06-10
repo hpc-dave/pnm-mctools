@@ -1067,7 +1067,7 @@ class MulticomponentTools:
         """
         return ApplyBC(self.network, bc=self.bc, A=A, x=x, b=b, type=type)
 
-    def NumericalDifferenciation(self, c, defect_func, dc: float = 1e-6, mem_opt: str = 'full', type: str = 'Jacobian'):
+    def NumericalDifferentiation(self, c, defect_func, dc: float = 1e-6, mem_opt: str = 'full', type: str = 'Jacobian'):
         r"""
         Wrapper around the NumericalDifferentiation function. For Details refer to the function itself
         """

@@ -2,8 +2,8 @@ import math
 import numpy as np
 
 
-def calibrated_conductance(conn, pore_radii, throat_radii, throat_density, throat_viscosity, rate,
-                           gamma: float, C_0: float, E_0: float, F: float, m: float, n: float):
+def calibrated_conductance(conn, pore_radii, throat_radii, conduit_length, throat_density, throat_viscosity,
+                           rate, gamma: float, C_0: float, E_0: float, F: float, m: float, n: float):
     r"""
     Computes the hydraulic conductance according to Eghbalmanesh and Fathiganjehlou (10.1016/j.ces.2023.119396)
 
@@ -36,7 +36,12 @@ def calibrated_conductance(conn, pore_radii, throat_radii, throat_density, throa
 
     Returns
     -------
-    array of size [Nt,] with conductances in m^3/(Pa s)
+    array of size [Nt,] with conductances in m^4/(Pa s)
+
+    Notes
+    -----
+    The conductance is multiplied with the throat length to accommodate a pressure gradient and NOT
+    the pressure drop
     """
     r_ij = throat_radii.reshape((-1, 1)) * F
     mu = throat_viscosity.reshape((-1, 1))
@@ -47,15 +52,12 @@ def calibrated_conductance(conn, pore_radii, throat_radii, throat_density, throa
     r_4 = r_ij**4
     r_i = pore_radii[conn[:, 0]].reshape((-1, 1))
     r_j = pore_radii[conn[:, 1]].reshape((-1, 1))
+    l_r = (1. / conduit_length).reshape((-1, 1))
     Re_ij = 2 * rho * _rate/(math.pi * mu * r_ij)
     A_ij = 8 * mu / (math.pi * r_4)
-    C_ij = rho/(2 * math.pi**2 * r_4) * _rate * ((C_0/Re_ij)**n + 1./(2**n) * (1 - r_ij/r_i)**n)
-    E_ij = rho/(2 * math.pi**2 * r_4) * _rate * ((E_0/Re_ij)**m + (1 - r_ij/r_j)**n)
-    G_ij = gamma * rho * _rate / (2 * math.pi**2) * (1/r_i**4 - 1/r_j**4)
-
-    # noflow = _rate < 1e-15
-    # C_ij[noflow] = 0.
-    # E_ij[noflow] = 0.
+    C_ij = rho/(2 * math.pi**2 * r_4) * _rate * ((C_0/Re_ij)**n + 1./(2**n) * (1 - r_ij/r_i)**n) * l_r
+    E_ij = rho/(2 * math.pi**2 * r_4) * _rate * ((E_0/Re_ij)**m + (1 - r_ij/r_j)**n) * l_r
+    G_ij = gamma * rho * _rate / (2 * math.pi**2) * (1/r_i**4 - 1/r_j**4) * l_r
 
     return (1./(A_ij + C_ij + E_ij - G_ij)).reshape((-1, 1))
 
@@ -66,6 +68,7 @@ def GetConductanceObject(network, F, m, n, C_0: float = 26, E_0: float = 27, gam
         return calibrated_conductance(conn=network['throat.conns'],
                                       pore_radii=network['pore.diameter'] * 0.5,
                                       throat_radii=network['throat.diameter'] * 0.5,
+                                      conduit_length=network['throat.length'],
                                       throat_density=throat_density,
                                       throat_viscosity=throat_viscosity,
                                       rate=rate_prev,
