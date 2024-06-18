@@ -465,7 +465,10 @@ class MulticomponentTools:
         self._ddt = {}
         self._grad = {}
         self._div = {}
+        self._delta = {}
+        self._sum = {}
         self._upwind = {}
+        self._cds = {}
         self.bc = [{} for _ in range(num_components)]
         self.network = network
         self.num_components = num_components
@@ -596,6 +599,61 @@ class MulticomponentTools:
         p_coord = network['pore.coords']
         dist = np.sqrt(np.sum((p_coord[conns[:, 0], :] - p_coord[conns[:, 1], :])**2, axis=1))
         weights = 1./dist
+        weights = np.append(weights, -weights)
+        if num_components == 1:
+            return np.transpose(network.create_incidence_matrix(weights=weights, fmt='csr'))
+        else:
+            if include is None:
+                include = range(num_components)
+            num_included = len(include)
+
+            im = np.transpose(network.create_incidence_matrix(weights=weights, fmt='coo'))
+            data = np.zeros((im.data.size, num_included), dtype=float)
+            rows = np.zeros((im.data.size, num_included), dtype=float)
+            cols = np.zeros((im.data.size, num_included), dtype=float)
+
+            pos = 0
+            for n in include:
+                rows[:, pos] = im.row * self.num_components + n
+                cols[:, pos] = im.col * self.num_components + n
+                data[:, pos] = im.data
+                pos += 1
+
+            rows = np.ndarray.flatten(rows)
+            cols = np.ndarray.flatten(cols)
+            data = np.ndarray.flatten(data)
+            mat_shape = (self.network.Nt * self.num_components, self.network.Np * self.num_components)
+            grad = scipy.sparse.coo_matrix((data, (rows, cols)), shape=mat_shape)
+            return scipy.sparse.csr_matrix(grad)
+
+    def _construct_delta(self, include=None, exclude=None):
+        r"""
+        Constructs the matrix for differences (deltas)
+
+        Parameters
+        ----------
+            include: list
+                list of component IDs to include, all if set to None
+            exclude: list
+                list of component IDs to exclude, no impact if include is set
+
+        Returns
+        -------
+            Delta matrix
+
+        Notes
+        -----
+            The direction of the Differences is given by the connections specified in the network,
+            mores specifically from conns[:, 0] to conns[:, 1]
+        """
+        include = self._get_include(include, exclude)
+        network = self.network
+        num_components = self.num_components
+
+        conns = network['throat.conns']
+        # p_coord = network['pore.coords']
+        # dist = np.sqrt(np.sum((p_coord[conns[:, 0], :] - p_coord[conns[:, 1], :])**2, axis=1))
+        weights = np.ones_like(conns[:, 0], dtype=float)
         weights = np.append(weights, -weights)
         if num_components == 1:
             return np.transpose(network.create_incidence_matrix(weights=weights, fmt='csr'))
@@ -847,6 +905,55 @@ class MulticomponentTools:
             upwind = scipy.sparse.coo_matrix((data, (rows, cols)), shape=mat_shape)
             return scipy.sparse.csr_matrix(upwind)
 
+    def _construct_cds_interpolation(self, include=None, exclude=None):
+        r"""
+        Constructs a [Nt, Np] matrix for the interpolation of values at the throats
+        from pore values
+
+        Parameters
+        ----------
+        include: list
+            a list of integers to specify for which components the matrix should be constructed,
+            for components which are not listed here, the rows will be 0. If 'None' is provided,
+            all components will be selected
+        exclude: list
+            Inverse of include, without effect if include is specified
+        Returns
+        -------
+        A [Nt, Np] sized CSR-matrix representing a directed network
+
+        """
+        include = self._get_include(include, exclude)
+        num_components = self.num_components
+        network = self.network
+        if num_components == 1:
+            weights = np.full((2 * network.Nt, 1), fill_value=0.5, dtype=float)
+            return np.transpose(network.create_incidence_matrix(weights=weights, fmt='csr'))
+        else:
+            if include is None:
+                include = range(num_components)
+            num_included = len(include)
+
+            im = np.transpose(network.create_incidence_matrix(fmt='coo'))
+
+            data = np.zeros((im.data.size, num_included), dtype=float)
+            rows = np.zeros((im.data.size, num_included), dtype=int)
+            cols = np.zeros((im.data.size, num_included), dtype=int)
+
+            pos = 0
+            for n in include:
+                rows[:, pos] = im.row * num_components + n
+                cols[:, pos] = im.col * num_components + n
+                data[:, pos] = im.data * 0.5
+                pos += 1
+
+            rows = np.ndarray.flatten(rows)
+            cols = np.ndarray.flatten(cols)
+            data = np.ndarray.flatten(data)
+            mat_shape = (network.Nt * num_components, network.Np * num_components)
+            cds = scipy.sparse.coo_matrix((data, (rows, cols)), shape=mat_shape)
+            return scipy.sparse.csr_matrix(cds)
+
     def _convert_include_to_key(self, include):
         r"""
         provides a key based on the include list
@@ -1009,6 +1116,66 @@ class MulticomponentTools:
             self._div[key] = self._construct_div(weights=weights, custom_weights=custom_weights)
         return self._div[key]
 
+    def Delta(self, include=None, exclude=None):
+        r"""
+        Computes a delta matrix
+
+        Parameters
+        ----------
+        include:
+            int or list of ints with IDs to include, if 'None' is provided
+            all IDs will be included
+        exlude:
+            inverse of include, without effect if include is specified
+
+        Returns
+        -------
+        a matrix for computing differences in CSR-format
+        """
+        include = self._get_include(include, exclude)
+        key = self._convert_include_to_key(include)
+        if key not in self._delta:
+            self._delta[key] = self._construct_delta(include=include)
+        return self._delta[key]
+
+    def Sum(self, include=None, exclude=None):
+        r"""
+        Constructs summation matrix
+
+        Parameters
+        ----------
+        include: list
+            identifier, which components should be included in the divergence, all other
+            rows will be set to 0
+        exclude: list
+            identifier, which components shall be exluded, respectively which rows shall be
+            set to 0. Without effect if include is specified
+
+        Returns
+        -------
+            Summation matrix
+
+        Notes
+        -----
+            For the sum, the flux in each throat is assumed to be directed
+            according to underlying specification of the throats in the network. More specifically,
+            the flux is directed according the to the 'throat.conn' array, from the pore in column 0 to the pore
+            in column 1, e.g. if the throat.conn array looks like this:
+            [
+                [0, 1]
+                [1, 2]
+                [2, 3]
+            ]
+            Then the fluxes are directed from pore 0 to 1, 1 to 2 and 2 to 3. A potential network could be:
+            (0) -> (1) -> (2) -> (3)
+        """
+        include = self._get_include(include, exclude)
+        key = self._convert_include_to_key(include)
+        if key not in self._sum:
+            weights = np.ones_like(self.network['throat.conns'][:, 0], dtype=float)
+            self._sum[key] = self._construct_div(weights=weights)
+        return self._sum[key]
+
     def Upwind(self, fluxes, include=None, exclude=None):
         r"""
         Constructs a [Nt, Np] matrix representing a directed network based on the upwind
@@ -1048,6 +1215,29 @@ class MulticomponentTools:
         if key not in self._upwind:
             self._upwind[key] = self._construct_upwind(fluxes=fluxes, include=include)
         return self._upwind[key]
+
+    def CentralDifference(self, fluxes, include=None, exclude=None):
+        r"""
+        Constructs a [Nt, Np] matrix for the interpolation of values at the throats
+        from pore values
+
+        Parameters
+        ----------
+        include: list
+            a list of integers to specify for which components the matrix should be constructed,
+            for components which are not listed here, the rows will be 0. If 'None' is provided,
+            all components will be selected
+        exclude: list
+            Inverse of include, without effect if include is specified
+        Returns
+        -------
+        A [Nt, Np] sized CSR-matrix representing a directed network
+        """
+        include = self._get_include(include, exclude)
+        key = self._convert_include_to_key(include)
+        if key not in self._cds:
+            self._cds[key] = self._construct_cds_interpolation(include=include)
+        return self._cds[key]
 
     def ApplyBC(self, A=None, x=None, b=None, type='Jacobian'):
         r"""
