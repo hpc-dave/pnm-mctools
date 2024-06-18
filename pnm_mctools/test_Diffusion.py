@@ -6,6 +6,7 @@ import numpy as np
 import scipy
 import math
 from ToolSet import MulticomponentTools
+from IO import network_to_vtk
 
 
 def run(output: bool = True):
@@ -98,6 +99,11 @@ def run(output: bool = True):
         if output:
             print(f'{t}/{len(tsteps)} - {time:1.2f}: {last_iter + 1} it [{G_norm:1.2e}]\
                 err [{np.max(np.abs(err[:, 0])):1.2e} {np.max(np.abs(err[:, 1])):1.2e}]')
+        network_to_vtk(network, filename='test_mult_' + str(t) + '.vtk', additional_data={'mydata': [c, ['forward', 'backward']]})
         time += dt
 
     return success
+
+
+if __name__ == '__main__':
+    run()

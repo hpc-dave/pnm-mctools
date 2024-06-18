@@ -88,3 +88,7 @@ def run(output: bool = True):
 
     print('DiluteFlow does not have a success criteria yet')
     return success
+
+
+if __name__ == '__main__':
+    run()
