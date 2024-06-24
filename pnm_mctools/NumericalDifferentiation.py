@@ -19,11 +19,12 @@ def _compute_dc(x_0, dc_value: float):
     -------
     1-dim vector with interval values for each row of the LES
     """
-
-    dc = np.full((x_0.size, 1), fill_value=dc_value)
-    x_0_abs = np.abs(x_0)
-    mask = (x_0_abs < dc_value) & (x_0_abs > 0.)
-    dc[mask] *= np.abs(x_0[mask])
+    dc = np.abs(x_0) * dc_value
+    dc[dc < dc_value] = dc_value
+    # dc = np.full((x_0.size, 1), fill_value=dc_value)
+    # x_0_abs = np.abs(x_0)
+    # mask = (x_0_abs < dc_value) & (x_0_abs > 0.)
+    # dc[mask] *= np.abs(x_0[mask])
     return dc
 
 
@@ -204,7 +205,7 @@ def NumericalDifferentiation(c, defect_func, dc: float = 1e-6, type: str = 'full
         raise (f'Unknown type: {type}')
 
 
-def _testing():
+if __name__ == '__main__':
     sizes = [50, 100, 500, 1000, 2000, 5000]
 
     for size in sizes:
