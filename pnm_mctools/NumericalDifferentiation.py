@@ -21,10 +21,6 @@ def _compute_dc(x_0, dc_value: float):
     """
     dc = np.abs(x_0) * dc_value
     dc[dc < dc_value] = dc_value
-    # dc = np.full((x_0.size, 1), fill_value=dc_value)
-    # x_0_abs = np.abs(x_0)
-    # mask = (x_0_abs < dc_value) & (x_0_abs > 0.)
-    # dc[mask] *= np.abs(x_0[mask])
     return dc
 
 
