@@ -172,22 +172,36 @@ def _apply_numerical_differentiation_locally_constrained(c: np.ndarray,
 
     Notes
     -----
-    Here, only the Jacobian on the main diagonal is computed
+    Here, only the Jacobian with the local 'blocks' is computed
     """
-    num_param = len(signature(defect_func)._parameters)
     Nc = c.shape[1]
-    single_param = num_param == 1
-    row_col_id = np.arange(0, c.size, Nc)
-    row_cols = np.zeros_like(c, dtype=int)
-    values = np.zeros_like(c, dtype=int)
-    dc = dc.reshape(c.shape)
+    single_param = len(signature(defect_func)._parameters) == 1
+
+    # we assume that each 'cell' is responsible for Nc coupled components
+    # therefore leading to a block-wise structure of the Jacobian. That
+    # means, that each row requires Nc values. So we extend store the
+    # row ids, col ids and values of interest in an (N_cell, Nc, Nc)-size array and later on
+    # reshape it to a 1D vector
+    shape_extended = list(c.shape)
+    shape_extended.append(Nc)
+
+    row_col_id = np.arange(0, c.size, Nc)       # temporary variable to set the row and column ids
+    rows = np.zeros(shape_extended, dtype=int)  # store associated row values
+    cols = np.zeros_like(rows, dtype=int)       # store associated column values
+    values = np.zeros_like(cols, dtype=float)   # store the numerical differences
+    dc = dc.reshape(c.shape)                    # reshape the differences for later use
     if single_param:
         G_0 = defect_func(c).reshape((-1, Nc))
     else:
         G_0 = defect_func(c, None).reshape((-1, Nc))
 
+    # Here's the crucial optimization:
+    # We loop through the COMPONENTS, instead of each column since each block
+    # is independent of each other
     for n_c in range(Nc):
-        row_cols[:, n_c] = row_col_id + n_c
+        row_col_id_l = (row_col_id + n_c).reshape((-1, 1))
+        rows[:, n_c, :] = row_col_id_l
+        cols[:, :, n_c] = row_col_id_l
         if n_c in exclude:
             continue
         c_perturb = c.copy()
@@ -195,11 +209,19 @@ def _apply_numerical_differentiation_locally_constrained(c: np.ndarray,
         if single_param:
             G_loc = defect_func(c_perturb).reshape((-1, Nc))
         else:
-            G_loc = defect_func(c_perturb, row_cols[:, n_c]).reshape((-1, Nc))
-        values[:, n_c] = (G_loc[:, n_c]-G_0[:, n_c]).reshape((-1)) / dc[:, n_c]
+            G_loc = defect_func(c_perturb, row_col_id_l).reshape((-1, Nc))
+        values[:, :, n_c] = (G_loc-G_0) / dc[:, n_c].reshape((-1, 1))
+
+    # to accomodate that we want to exclude certain values, even if they are dependent
+    # on the specified excluded component (e.g. because we are lazy and didn't take the
+    # explicit component out of the defect function), the row based values need to be 
+    # removed/set to 0
+    if len(exclude) > 0:
+        values[:, exclude, :] = 0.
     values = values.reshape((-1))
-    row_cols = row_cols.reshape((-1))
-    J = scipy.sparse.coo_matrix((values, (row_cols, row_cols)))
+    rows = rows.reshape((-1))
+    cols = cols.reshape((-1))
+    J = scipy.sparse.coo_matrix((values, (rows, cols)))
     J = scipy.sparse.csr_matrix(J)
     return J, G_0
 
@@ -288,7 +310,7 @@ if __name__ == '__main__':
 
     for size in sizes:
         print(f'size -> {size}')
-        c = np.zeros((size, 3), dtype=float)
+        c = np.ones((size, 3), dtype=float)
 
         J_0 = np.arange(1., c.size+1, dtype=float)
         J_0 = np.tile(J_0, reps=[c.size, 1])
@@ -296,6 +318,12 @@ if __name__ == '__main__':
         J_0 = np.matrix(J_0)
 
         def Defect(c, *args):
+            # f = c[:, 0] * c[:, 1] - 0.5*c[:, 2]
+            # g = np.zeros_like(c)
+            # g[:, 0] = f
+            # g[:, 1] = 2.* f
+            # g[:, 2] = -f
+            # return g
             # return np.arange(0., c.size).reshape(c.shape) * c  # for debugging
             return J_0 * c.reshape((c.size, 1))
 
