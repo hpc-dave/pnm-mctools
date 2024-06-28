@@ -55,8 +55,8 @@ def calibrated_conductance(conn, pore_radii, throat_radii, conduit_length, throa
     l_r = (1. / conduit_length).reshape((-1, 1))
     Re_ij = 2 * rho * _rate/(math.pi * mu * r_ij)
     A_ij = 8 * mu / (math.pi * r_4)
-    C_ij = rho/(2 * math.pi**2 * r_4) * _rate * ((C_0/Re_ij)**n + 1./(2**n) * (1 - r_ij/r_i)**n) * l_r
-    E_ij = rho/(2 * math.pi**2 * r_4) * _rate * ((E_0/Re_ij)**m + (1 - r_ij/r_j)**n) * l_r
+    C_ij = rho/(2 * math.pi**2 * r_4) * _rate * ((C_0/Re_ij)**n + 1./(2**n) * (1 - (r_ij/r_i)**2)**n) * l_r
+    E_ij = rho/(2 * math.pi**2 * r_4) * _rate * ((E_0/Re_ij)**m + (1 - (r_ij/r_j)**2)**(2*m)) * l_r
     G_ij = gamma * rho * _rate / (2 * math.pi**2) * (1/r_i**4 - 1/r_j**4) * l_r
 
     return (1./(A_ij + C_ij + E_ij - G_ij)).reshape((-1, 1))

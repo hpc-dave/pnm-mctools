@@ -152,7 +152,7 @@ def AdsorptionSingleComponent(c,
     if type == 'Defect':
         b = Defect(c)
     else:
-        A, b = NumericalDifferentiation(c, defect_func=Defect, exclude=exclude, dc=dc)
+        A, b = NumericalDifferentiation(c, defect_func=Defect, exclude=exclude, dc=dc, type='constrained')
 
     V_pore = np.hstack([V_pore for _ in range(Nc)]).reshape((-1, 1))
     b *= V_pore

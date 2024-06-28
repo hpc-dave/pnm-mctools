@@ -261,4 +261,5 @@ def run_Freundlich(output: bool = True):
     return success
 
 
-run()
+if __name__ == '__main__':
+    run()
