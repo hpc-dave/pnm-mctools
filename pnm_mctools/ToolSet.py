@@ -927,7 +927,7 @@ class MulticomponentTools:
         num_components = self.num_components
         network = self.network
         if num_components == 1:
-            weights = np.full((2 * network.Nt, 1), fill_value=0.5, dtype=float)
+            weights = np.full((2 * network.Nt), fill_value=0.5, dtype=float)
             return np.transpose(network.create_incidence_matrix(weights=weights, fmt='csr'))
         else:
             if include is None:
