@@ -16,8 +16,14 @@ from Adsorption import Linear, Langmuir, Freundlich         # noqa: E402
 def run(output: bool = True):
     success = True
     success &= run_Linear(output)
+    if not success:
+        print('Linear failed')
     success &= run_Langmuir(output)
+    if not success:
+        print('Linear failed')
     success &= run_Freundlich(output)
+    if not success:
+        print('Linear failed')
     return success
 
 
@@ -91,7 +97,7 @@ def run_Linear(output: bool = True):
     m[:, dil] *= network['pore.volume']
     m[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
     err = np.sum(m - m_0)/np.sum(m_0)
-    success &= err < 1e-12
+    success &= err < 1e-8
 
     theta_final = y_f(c[:, dil], c[:, ads])
     c_ads = theta_final

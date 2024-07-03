@@ -44,7 +44,7 @@ if not success:
     print('VariableBC test failed')
     success_all = False
 
-success = Adsorption.run(output=False)
+success = Adsorption.run(output=True)
 if not success:
     print('Adsorption test failed')
     success_all = False
