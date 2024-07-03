@@ -1,11 +1,11 @@
-import test_Convection as Convection
-import test_Diffusion as Diffusion
-import test_DiffusionConvection as DiffusionConvection
-import test_DiluteFlow as DiluteFlow
-import test_Outflow_Convection as OutflowConvection
-import test_RateBC_Convection as RateBCConvection
-import test_VariableBC as VariableBC
-import test_Adsorption as Adsorption
+import test.test_Convection as Convection
+import test.test_Diffusion as Diffusion
+import test.test_DiffusionConvection as DiffusionConvection
+import test.test_DiluteFlow as DiluteFlow
+import test.test_Outflow_Convection as OutflowConvection
+import test.test_RateBC_Convection as RateBCConvection
+import test.test_VariableBC as VariableBC
+import test.test_Adsorption as Adsorption
 
 
 success_all = True

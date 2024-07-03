@@ -1,11 +1,16 @@
-import openpnm as op
-import scipy.linalg
-import scipy.sparse
-import numpy as np
-import scipy
-from ToolSet import MulticomponentTools
-from Adsorption import AdsorptionSingleComponent
-from Adsorption import Linear, Langmuir, Freundlich
+import sys
+from pathlib import Path
+parent_dir = Path(__file__).parent.parent
+sys.path.append(str(parent_dir))
+
+import openpnm as op                                        # noqa: E402
+import scipy.linalg                                         # noqa: E402
+import scipy.sparse                                         # noqa: E402
+import numpy as np                                          # noqa: E402
+import scipy                                                # noqa: E402
+from ToolSet import MulticomponentTools                     # noqa: E402
+from Adsorption import AdsorptionSingleComponent            # noqa: E402
+from Adsorption import Linear, Langmuir, Freundlich         # noqa: E402
 
 
 def run(output: bool = True):

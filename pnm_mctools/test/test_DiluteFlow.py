@@ -1,10 +1,13 @@
-import openpnm as op
-import scipy.linalg
-import scipy.sparse
-import spheres_and_cylinders as geo_model
-import numpy as np
-import scipy
-from ToolSet import MulticomponentTools
+import sys
+from pathlib import Path
+parent_dir = Path(__file__).parent.parent
+sys.path.append(str(parent_dir))
+
+import openpnm as op                                       # noqa: E402
+import scipy, scipy.linalg, scipy.sparse                   # noqa: E401, E402
+import spheres_and_cylinders as geo_model                  # noqa: E402
+import numpy as np                                         # noqa: E402
+from ToolSet import MulticomponentTools                    # noqa: E402
 
 
 def run(output: bool = True):

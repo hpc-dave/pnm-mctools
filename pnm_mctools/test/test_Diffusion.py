@@ -1,12 +1,14 @@
-import openpnm as op
-import scipy.linalg
-import scipy.sparse
-import spheres_and_cylinders as geo_model
-import numpy as np
-import scipy
-import math
-from ToolSet import MulticomponentTools
-from IO import network_to_vtk
+import sys
+from pathlib import Path
+parent_dir = Path(__file__).parent.parent
+sys.path.append(str(parent_dir))
+
+import openpnm as op                                       # noqa: E402
+import math, scipy, scipy.linalg, scipy.sparse             # noqa: E401, E402
+import spheres_and_cylinders as geo_model                  # noqa: E402
+import numpy as np                                         # noqa: E402
+from ToolSet import MulticomponentTools                    # noqa: E402
+from IO import network_to_vtk                              # noqa: E402
 
 
 def run(output: bool = True):
@@ -63,7 +65,6 @@ def run(output: bool = True):
             s_tr += 2 * np.cos(n * math.pi)/npi * np.exp(-(npi)**2 * t) * np.cos(npi * zeta)
         return (s_inf - s_tr)
 
-
     zeta = np.asarray([network['pore.coords'][i][0] for i in range(network.Np)])
     zeta = zeta - zeta[0]
     zeta = zeta / (zeta[-1]+0.5*spacing)
@@ -99,7 +100,8 @@ def run(output: bool = True):
         if output:
             print(f'{t}/{len(tsteps)} - {time:1.2f}: {last_iter + 1} it [{G_norm:1.2e}]\
                 err [{np.max(np.abs(err[:, 0])):1.2e} {np.max(np.abs(err[:, 1])):1.2e}]')
-        network_to_vtk(network, filename='test_mult_' + str(t) + '.vtk', additional_data={'mydata': [c, ['forward', 'backward']]})
+        network_to_vtk(network, filename='test_mult_' + str(t) + '.vtk',
+                       additional_data={'mydata': [c, ['forward', 'backward']]})
         time += dt
 
     return success

@@ -1,12 +1,13 @@
+import sys
+from pathlib import Path
+parent_dir = Path(__file__).parent.parent
+sys.path.append(str(parent_dir))
 
-import openpnm as op
-import scipy.linalg
-import scipy.sparse
-import spheres_and_cylinders as geo_model
-from matplotlib import pyplot as plt
-import numpy as np
-import scipy
-from ToolSet import MulticomponentTools
+import openpnm as op                                       # noqa: E402
+import scipy, scipy.linalg, scipy.sparse                   # noqa: E401, E402
+import spheres_and_cylinders as geo_model                  # noqa: E402
+import numpy as np                                         # noqa: E402
+from ToolSet import MulticomponentTools                    # noqa: E402
 
 Nx = 10
 Ny = 100000
@@ -80,11 +81,5 @@ alg.set_value_BC(pores=outlet, values=c_out)
 
 x0 = np.zeros_like(network['pore.diameter'])
 alg.run(x0=x0, tspan=[0, 1])
-
-c_pore = alg['pore.concentration']
-c_throat = alg.interpolate_data(propname='throat.concentration')
-d = network['pore.diameter']
-fix, ax = plt.subplots(figsize=[5, 5])
-op.visualization.plot_coordinates(network=network, color_by=c_pore, size_by=d, markersize=400, ax=ax)
 
 print('finished')
