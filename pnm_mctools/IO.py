@@ -1,6 +1,5 @@
 import numpy as np
 import vtk
-
 import pandas as pd
 from xml.etree import ElementTree as ET
 from openpnm.io import _parse_filename
@@ -186,7 +185,7 @@ def network_to_vtk(network, filename: str, additional_data: dict = None, fill_na
         str : np.ndarray    -> just a regular array
         or
         str : [np.ndarray, [str]]   -> an array with a list of component names
-        or 
+        or
         str : [[str], np.ndarray]   -> an list of component names and an array
     fill_nans
         value to use for filling up NaN values
@@ -236,7 +235,8 @@ def network_to_vtk(network, filename: str, additional_data: dict = None, fill_na
         comp_str = None
         if isinstance(data_set, list):
             if len(data_set) != 2:
-                raise ValueError('if the names are provided for the components, it needs to be provided in the form [data, [names]]')
+                raise ValueError('if the names are provided for the components,\
+                                  it needs to be provided in the form [data, [names]]')
             array, comp_str = data_set if isinstance(data_set[0], np.ndarray) else [data_set[1], data_set[0]]
             if not isinstance(comp_str, list):
                 raise TypeError(f'The component names for {key} are not provided as list')
@@ -296,7 +296,109 @@ def _writeToVTK(particles: vtk.vtkAppendPolyData, out_file: str) -> None:
     writer.Update()
 
 
-def WritePoresToVTK(coords, dpore, filename: str, quality: int, filter=None) -> None:
+def _vtkPolyDataSpheres(coords,
+                        radii,
+                        quality: int,
+                        polydata: vtk.vtkAppendPolyData = None,
+                        filter=None) -> vtk.vtkAppendPolyData:
+    r"""
+    Appends spheres to a VTK AppendPolyData object
+
+    Parameters
+    ----------
+    coords: np.ndarray
+        set of coordinates with size [Np, 3]
+    radii: np.ndarray
+        array of pore radii of size [Np, 1]
+    quality: int
+        parameter given to VTK to determine the number of facets on the surface of the sphere
+    polydata: vtk.vtkAppendPolyData:
+        Data set the spheres are appended to, will be created if not provided
+    filter: Callable
+        function object that allows filtering of the pores by their coordinates, signature
+        of the object needs to be (list[float]) -> bool
+
+    Returns
+    -------
+    A vtkAppendPolyData object with the provided spheres
+    """
+    if polydata is None:
+        polydata = vtk.vtkAppendPolyData()
+    radii_l = np.asarray(radii)
+
+    for i in range(radii_l.size):
+        if not (filter(coords[i, :]) if filter is not None else True):
+            continue
+        sphere = vtk.vtkSphereSource()
+        sphere.SetThetaResolution(quality)
+        sphere.SetPhiResolution(quality)
+        sphere.SetRadius(radii[i])
+        sphere.SetCenter(coords[i, 0], coords[i, 1], coords[i, 2])
+        sphere.Update()
+        polydata.AddInputData(sphere.GetOutput())
+
+    return polydata
+
+
+def _vtkPolyDataCylinders(coords,
+                          conns,
+                          radii,
+                          quality: int,
+                          polydata: vtk.vtkAppendPolyData = None,
+                          filter=None) -> vtk.vtkAppendPolyData:
+    r"""
+    Appends cylinders to a VTK AppendPolyData object
+
+    Parameters
+    ----------
+    coords: np.ndarray
+        set of coordinates with size [Np, 3]
+    conns: np.ndarray
+        array of connecting pores [Nt, 2]
+    radii: np.ndarray
+        array of throat radii of size [Nt, 1]
+    quality: int
+        parameter given to VTK to determine the number of facets on the surface of the sphere
+    polydata: vtk.vtkAppendPolyData:
+        Data set the cylinders are appended to, will be created if not provided
+    filter: Callable
+        function object that allows filtering of the pores by their coordinates, signature
+        of the object needs to be (list[float]) -> bool
+
+    Returns
+    -------
+    A vtkAppendPolyData object with the provided cylinders
+    """
+    if polydata is None:
+        polydata = vtk.vtkAppendPolyData()
+    radii_l = np.asarray(radii)
+
+    if conns.shape[0] != radii_l.shape[0]:
+        raise Exception('radii and throats are incompatible')
+
+    for i in range(radii_l.size):
+        line = vtk.vtkLineSource()
+        p1 = conns[i, 0]
+        p2 = conns[i, 1]
+        if not (filter(coords[p1, :], coords[p2, :]) if filter is not None else True):
+            continue
+
+        line.SetPoint1(coords[p1, 0], coords[p1, 1], coords[p1, 2])
+        line.SetPoint2(coords[p2, 0], coords[p2, 1], coords[p2, 2])
+        line.SetResolution(1)
+        line.Update()
+
+        tubefilter = vtk.vtkTubeFilter()
+        tubefilter.SetInputData(line.GetOutput())
+        tubefilter.SetRadius(radii_l[i])
+        tubefilter.SetNumberOfSides(quality)
+        tubefilter.Update()
+        polydata.AddInputData(tubefilter.GetOutput())
+
+    return polydata
+
+
+def WritePoresToVTK(coords, radii, filename: str, quality: int, filter=None) -> None:
     r"""
     writes pores as spheres to a VTK file
 
@@ -304,8 +406,8 @@ def WritePoresToVTK(coords, dpore, filename: str, quality: int, filter=None) -> 
     ----------
     coords: np.ndarray
         set of coordinates with size [Np, 3]
-    dpore: np.ndarray
-        array of pore diameters of size [Np, 1]
+    radii: np.ndarray
+        array of pore radii of size [Np, 1]
     filename: str
         name of the file to write to
     quality: int
@@ -319,25 +421,15 @@ def WritePoresToVTK(coords, dpore, filename: str, quality: int, filter=None) -> 
     This is an extremely heavy function and the resulting VTK files are usually quite resource
     intensive for Paraview, use the quality measure with care!
     """
-    if coords.shape[0] != dpore.shape[0]:
+    if coords.shape[0] != radii.shape[0]:
         raise Exception('coordinates and pore incompatible')
     if (len(coords) == 0):
         print('No pores provided for writing, skipping writing of ' + filename)
         return
 
-    all_spheres = vtk.vtkAppendPolyData()
-    for i in range(len(dpore)):
-        if not (filter(coords[i, :]) if filter is not None else True):
-            continue
-        sphere = vtk.vtkSphereSource()
-        sphere.SetThetaResolution(quality)
-        sphere.SetPhiResolution(quality)
-        sphere.SetRadius(dpore[i]*0.5)
-        sphere.SetCenter(coords[i, 0], coords[i, 1], coords[i, 2])
-        sphere.Update()
-        all_spheres.AddInputData(sphere.GetOutput())
+    all_pores = _vtkPolyDataSpheres(coords, radii=radii, quality=quality, filter=filter)
 
-    _writeToVTK(all_spheres, filename)
+    _writeToVTK(all_pores, filename)
 
 
 def WriteThroatsToVTK(coords, conns, radii, filename: str, quality: int, filter=None):
@@ -371,25 +463,6 @@ def WriteThroatsToVTK(coords, conns, radii, filename: str, quality: int, filter=
         print('No coordinates provided for writing, skipping writing of ' + filename)
         return
 
-    all_throats = vtk.vtkAppendPolyData()
-    for i in range(len(radii)):
-        line = vtk.vtkLineSource()
-        p1 = conns[i, 0]
-        p2 = conns[i, 1]
-        if not (filter(coords[p1, :], coords[p2, :]) if filter is not None else True):
-            continue
+    all_cylinders = _vtkPolyDataCylinders(coords=coords, conns=conns, radii=radii, quality=quality, filter=filter)
 
-        line.SetPoint1(coords[p1, 0], coords[p1, 1], coords[p1, 2])
-        line.SetPoint2(coords[p2, 0], coords[p2, 1], coords[p2, 2])
-        line.SetResolution(1)
-        line.Update()
-
-        tubefilter = vtk.vtkTubeFilter()
-        tubefilter.SetInputData(line.GetOutput())
-        tubefilter.SetRadius(radii[i])
-        tubefilter.SetNumberOfSides(quality)
-        # tubefilter.CappingOn()
-        tubefilter.Update()
-        all_throats.AddInputData(tubefilter.GetOutput())
-
-    _writeToVTK(all_throats, filename)
+    _writeToVTK(all_cylinders, filename)

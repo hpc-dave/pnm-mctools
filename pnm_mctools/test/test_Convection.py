@@ -6,7 +6,7 @@ sys.path.append(str(parent_dir))
 import openpnm as op                                      # noqa: E402
 import scipy.linalg                                       # noqa: E402
 import scipy.sparse                                       # noqa: E402
-import spheres_and_cylinders as geo_model                 # noqa: E402
+import testing.const_spheres_and_cylinders as geo_model   # noqa: E402
 import numpy as np                                        # noqa: E402
 import scipy                                              # noqa: E402
 from ToolSet import MulticomponentTools                   # noqa: E402
@@ -106,3 +106,7 @@ def run(output: bool = True):
         time += dt
 
     return success
+
+
+if __name__ == '__main__':
+    run(output=True)
