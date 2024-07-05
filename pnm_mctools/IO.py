@@ -345,6 +345,7 @@ def _vtkPolyDataCylinders(coords,
                           radii,
                           quality: int,
                           polydata: vtk.vtkAppendPolyData = None,
+                          capping_on: bool = False,
                           filter=None) -> vtk.vtkAppendPolyData:
     r"""
     Appends cylinders to a VTK AppendPolyData object
@@ -361,6 +362,8 @@ def _vtkPolyDataCylinders(coords,
         parameter given to VTK to determine the number of facets on the surface of the sphere
     polydata: vtk.vtkAppendPolyData:
         Data set the cylinders are appended to, will be created if not provided
+    capping_on: bool
+        add capping to cylinders
     filter: Callable
         function object that allows filtering of the pores by their coordinates, signature
         of the object needs to be (list[float]) -> bool
@@ -392,6 +395,8 @@ def _vtkPolyDataCylinders(coords,
         tubefilter.SetInputData(line.GetOutput())
         tubefilter.SetRadius(radii_l[i])
         tubefilter.SetNumberOfSides(quality)
+        if capping_on:
+            tubefilter.CappingOn()
         tubefilter.Update()
         polydata.AddInputData(tubefilter.GetOutput())
 
