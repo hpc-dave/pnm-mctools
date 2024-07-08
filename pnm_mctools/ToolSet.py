@@ -601,7 +601,7 @@ class MulticomponentTools:
         weights = 1./dist
         weights = np.append(weights, -weights)
         if num_components == 1:
-            return np.transpose(network.create_incidence_matrix(weights=weights, fmt='csr'))
+            grad = np.transpose(network.create_incidence_matrix(weights=weights, fmt='csr'))
         else:
             if include is None:
                 include = range(num_components)
@@ -624,7 +624,7 @@ class MulticomponentTools:
             data = np.ndarray.flatten(data)
             mat_shape = (self.network.Nt * self.num_components, self.network.Np * self.num_components)
             grad = scipy.sparse.coo_matrix((data, (rows, cols)), shape=mat_shape)
-            return scipy.sparse.csr_matrix(grad)
+        return scipy.sparse.csr_matrix(grad)
 
     def _construct_delta(self, include=None, exclude=None):
         r"""
@@ -651,12 +651,10 @@ class MulticomponentTools:
         num_components = self.num_components
 
         conns = network['throat.conns']
-        # p_coord = network['pore.coords']
-        # dist = np.sqrt(np.sum((p_coord[conns[:, 0], :] - p_coord[conns[:, 1], :])**2, axis=1))
         weights = np.ones_like(conns[:, 0], dtype=float)
         weights = np.append(weights, -weights)
         if num_components == 1:
-            return np.transpose(network.create_incidence_matrix(weights=weights, fmt='csr'))
+            delta = np.transpose(network.create_incidence_matrix(weights=weights, fmt='csr'))
         else:
             if include is None:
                 include = range(num_components)
@@ -678,8 +676,8 @@ class MulticomponentTools:
             cols = np.ndarray.flatten(cols)
             data = np.ndarray.flatten(data)
             mat_shape = (self.network.Nt * self.num_components, self.network.Np * self.num_components)
-            grad = scipy.sparse.coo_matrix((data, (rows, cols)), shape=mat_shape)
-            return scipy.sparse.csr_matrix(grad)
+            delta = scipy.sparse.coo_matrix((data, (rows, cols)), shape=mat_shape)
+        return scipy.sparse.csr_matrix(delta)
 
     def _compute_flux_matrix(self, *args):
         r"""
