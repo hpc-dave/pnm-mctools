@@ -243,7 +243,7 @@ def network_to_vtk(network, filename: str, additional_data: dict = None, fill_na
         else:
             array = data_set
 
-        if array.dtype == bool:
+        if array.dtype == bool or isinstance(array[0], bool) or isinstance(array[0], np.bool):
             array = array.astype(int)
         if np.any(np.isnan(array)):
             if fill_nans is None:
