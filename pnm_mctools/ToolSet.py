@@ -176,8 +176,16 @@ def _apply_outflow_bc(pore_labels, bc, num_components: int, n_c: int, A, x, b, t
                 else:
                     pos_avg = pos_nb
                 coeff = np.sum(A.data[pos_avg])
-                coeff = -1. if coeff == 0 else coeff
-                A.data[pos_c] = -coeff
+                if coeff == 0.:
+                    # this scenario can happen under specific scenarios, e.g. a
+                    # diffusion coefficient of the value 0 or purely convective flow
+                    # with an upwind scheme. Then we need to set the correlation of
+                    # the components appropriately
+                    coeff = -1.
+                    A.data[pos_nb] = coeff
+                    A.data[pos_c] = -pos_nb.size * coeff
+                else:
+                    A.data[pos_c] = -coeff
         else:
             A = scipy.sparse.lil_matrix(A)
             coeff = np.sum(A[row_aff, :], axis=1) - A[row_aff, row_aff]
@@ -571,17 +579,22 @@ class MulticomponentTools:
         ddt = scipy.sparse.spdiags(data=[dVdt.ravel()], diags=[0])
         return ddt
 
-    def _construct_grad(self, include=None, exclude=None):
+    def _construct_grad(self,
+                        include: int|list = None,
+                        exclude: int|list = None,
+                        conduit_length: str|np.ndarray = None):
         r"""
         Constructs the gradient matrix
 
         Parameters
         ----------
-            include: list
-                list of component IDs to include, all if set to None
-            exclude: list
-                list of component IDs to exclude, no impact if include is set
-
+        include: int|list
+            list of component IDs to include, all if set to None
+        exclude: int|list
+            list of component IDs to exclude, no impact if include is set
+        conduit_length: str|np.ndarray
+            array of conduit lengths, supportes key access via strings, by default the distance
+            between two pores is taken
         Returns
         -------
             Gradient matrix
@@ -594,10 +607,19 @@ class MulticomponentTools:
         include = self._get_include(include, exclude)
         network = self.network
         num_components = self.num_components
+        
+        if conduit_length is None:
+            conns = network['throat.conns']
+            p_coord = network['pore.coords']
+            dist = np.sqrt(np.sum((p_coord[conns[:, 0], :] - p_coord[conns[:, 1], :])**2, axis=1))
+        elif isinstance(conduit_length, str):
+            dist = network[conduit_length]
+        elif isinstance(conduit_length, np.ndarray):
+            if conduit_length.size != network.Nt:
+                raise ValueError('The size of the conduit_length argument is incompatible with the number of throats!'
+                                 + f' Expected {network.Nt} entries, but received {conduit_length.size}')
+            dist = conduit_length.reshape((-1, 1))
 
-        conns = network['throat.conns']
-        p_coord = network['pore.coords']
-        dist = np.sqrt(np.sum((p_coord[conns[:, 0], :] - p_coord[conns[:, 1], :])**2, axis=1))
         weights = 1./dist
         weights = np.append(weights, -weights)
         if num_components == 1:
