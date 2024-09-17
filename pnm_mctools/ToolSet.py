@@ -1236,7 +1236,7 @@ class MulticomponentTools:
             self._upwind[key] = self._construct_upwind(fluxes=fluxes, include=include)
         return self._upwind[key]
 
-    def CentralDifference(self, fluxes, include=None, exclude=None):
+    def CentralDifference(self, include=None, exclude=None, **kwargs):
         r"""
         Constructs a [Nt, Np] matrix for the interpolation of values at the throats
         from pore values
@@ -1249,6 +1249,8 @@ class MulticomponentTools:
             all components will be selected
         exclude: list
             Inverse of include, without effect if include is specified
+        kwargs
+            just capturing variables to make switching between schemes easier, none of them are used here
         Returns
         -------
         A [Nt, Np] sized CSR-matrix representing a directed network
