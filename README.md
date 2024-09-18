@@ -107,9 +107,41 @@ r = i * N_c + n
 ```
 Note, that this only works out, since counting is based on 0 here!
 
+### Time derivative
+Following the finite volume approach, the time derivative is by default discretized via an Euler-backward scheme as:
+```math
+\int_V \frac{\partial \phi}{\partial t} \mathrm{d}V \approx \frac{\phi^{n+1}-\phi^{n}}{\Delta t} \Delta V
+```
+where $`\Delta V`$ refers to the discretized volume, usually the `pore.volume` property in the OpenPNM network and $`n`$ refers to the discrete timestep.
+When solving the discretized equations, the previous time timestep is an explicit contribution which we can realize by:
+```python
+ddt = mt.DDT(dt=dt)   # use whatever timestep you want, by default the `pore.volume` property is included
+J_other = ...         # define whatever other contributions you want to
+J = ddt + J_other     # assemble the full Jacobian
+# enter the time loop
+for n in range(num_tsteps):
+    x_old = x.copy()                  # copy the current variables to a array with the previous timestep
+    G = J * x - ddt * x_old           # define the initial defect
+    for n in range(num_iterations):
+        dx = scipy.sparse.linalg.spsolve(J, -G)  # solve the system
+        x += dx                                  # update field values
+        # update the Jacobian in case on nonlinear dependencies
+        # ....
+        G = J * x - ddt * x_old                  # compute new defect for convergence test
+        if not np.any(np.abs(G) > tol):          # check for convergence
+            break
+
+```
 ## Reactions
 Coming soon...
 ## Adsorption
 Coming soon...
 ## IO
-Coming soon...
+The IO functionality is independent of the Toolset and contained in the IO.py file and can be imported as:
+```python
+from pnm_mctools import IO
+```
+The most important functions here are:
+- network_to_vtk: similar function as `project_to_vtk` of OpenPNM allowing for convenient addition of data value sot the output
+- WritePoresToVTK: Writes the pores as spheres to a VTK file, good for visualization
+- WriteThroatsToVTK: Writes the throats as cylinders to a VTK file, good for visualization
