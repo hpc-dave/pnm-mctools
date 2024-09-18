@@ -23,7 +23,7 @@ at pore $`i`$, its neighbors $`j`$ and the conductance $`g`$. This toolset now a
     # then the Jacobian can be formulated as:
     J = sum(g, delta)
 ```
-Here, 'J' is a quadratic matrix of size $`N_p^2`$, where $`N_p`$ is the number of pores in the system.
+Here, `J` is a quadratic matrix of size $`N_p^2`$, where $`N_p`$ is the number of pores in the system.
 For computing the rates in the throats explicitly, we can now easily write:
 ```python
    Q = g * (delta * P)
@@ -48,4 +48,24 @@ This package can be installed using pip, e.g. by typing:
 ```
 
 ## The toolset
-The very first 
+The very first step to access the functionality consists by importing the `MulticomponentTools` and creating an instance:
+```python
+from pnm_mctools import MulticomponentTools
+# define an OpenPNM network 'pn' with a number of coupled components 'Nc'
+mt = MulticomponentTools(network=pn, num_components=Nc)
+```
+This is the minimal setup, then no explicit boundary conditions will be applied to the system. In practice that means that no manipulation of the matrices or defects is conducted, leading to a no-flux boundary condition for boundary pores. In case we want to apply boundary conditions, we have to do the following:
+```python
+from pnm_mctools import MulticomponentTools
+# define an OpenPNM network 'pn' with two coupled components
+bc_0 = {'left': {'prescribed': 1}, 'right': {'prescribed: 0} }    # boundary condition for component 0 at pores with the label 'left' and 'right'
+bc_1 = {'left': {'prescribed': 0}, 'right': {'prescribed: 1} }    # boundary condition for component 1 at pores with the label 'left' and 'right'
+mt = MulticomponentTools(network=pn, num_components=2, bc=[bc_0, bc_1])
+```
+For more details have a look at the dedicated section.
+
+
+
+
+
+
