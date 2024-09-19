@@ -73,6 +73,9 @@ Now we have everything set up and can start actually using the tools. Currently 
 - ApplyBC: Adapts the Jacobian or Defect according to the defined boundary conditions, if necessary
 - NumericalDifferentiation: Returns a $`N_p`$x$`N_p`$ sparse matrix based on numerical differentiation of a provided defect
 
+This whole toolset assumes that you want to assemble a Jacobian for solving your system. For linear models, the Jacobian and the regular discretized matrices are identical, so you can perform point-iterations. However, in the case that you don't want to assemble Jacobians, make sure that your computations are still correct!
+
+
 Every function takes the optional arguments `include` or `exclude`, which allow us to optimize the matrix and explicitly control, for wich components the matrices are computed. As an example:
 ```python
 # assume component 0 is transported between pores while component 1 is just accumulating, so there should be transport whatsoever
@@ -186,8 +189,67 @@ bc = [bc_0, bc_1]
 mt = MulticomponentTools(network=pn, num_components=Nc, bc=bc)
 ```
 
+## Numerical Differentiation
+As part of the toolset or as standalone functionality, we can obtain an approximate Jacobian by numerically differentiating the defect. For a defect $`G(x)`$, we can express the numerical differentiation as:
+```math
+J = \frac{\partial G}{\partial x} \approx \frac{G(x+\Delta x) - G(x)}{\Delta x}
+```
+The big advantage here is, that we can avoid the cumbersome derivation of the (non-linear) defect $`G`$. However, this comes with increased runtime-costs. The here provided functionality exploits a few tricks to reduce the runtime penalty. In the simplest case you can call it by:
+```python
+def Defect(c):
+    # define a defect function here
+    # Note, that may have the same shape as the input array c 
+
+mt = MulticomponentTools(...)
+c = ...      # an array of shape (Np, Nc) with the solution variables
+J, G = mt.NumericalDifferentiation(c, defect_func=Defect)
+
+# continue solving the system
+```
+Especially for large systems (>5000 rows as a rough indicator), memory limitations may become problematic with the default tool. For this case, you may specify a memory wise optimization, which comes at a slight runtime penalty:
+```python
+J, G = mt.NumericalDifferentiation(c, defect_func=Defect, type='low_mem')
+```
+A special case of optimization you can achieve, if you know that the Jacobian is only dependent on the components and not on the connected pores, e.g. in the case of reaction in the pore:
+```python
+J, G = mt.NumericalDifferentiation(c, defect_func=Defect, type='constrained')
+# or
+J, G = mt.NumericalDifferentiation(c, defect_func=Defect, axis=1)
+```
+The option `axis=1` exist for compatibility reason with the [pymrm](https://pypi.org/project/pymrm/) package.
 ## Reactions
-Coming soon...
+Typically, we introduce a non-linearity to our model when introducing reactions. So most of the times, exploiting numerical differentiation is the easiest way for determining the Jacobians. When defining your defect, take care that you also handle the equations in accordance with the above described discretization. Usually that means that your values need to be multiplied with the pore volume. Let's consider the following reaction:
+```math
+A + B \longrightarrow C
+```
+where the reaction rate is defined as
+```math
+r = k * c_A^2 * c_B
+```
+The defect of the reaction term could then be defined like this:
+```python
+def Reaction(c):
+   k = 1e2
+   r = k * c[:, 0]**2 * c[:, 1]
+   G = np.zeros_like(c)
+   G[:, 0] = -r
+   G[:, 1] = -r
+   G[:, 2] = r
+   G *= Vp                         # multiplication with pore volume
+   return G
+```
+However, for the specific case of a single educt with a linear reaction rate, e.g.
+```math
+A \longrightarrow B + C + D
+```
+This toolset provides a prepared solution:
+```python
+from pnm_mctools.Reactions import LinearReaction
+
+# set up a network ...
+k = 1e2
+J_r = LinearReaction(network=..., num_components=3, k=1e2, educt=0, product=[1,2])
+```
 ## Adsorption
 Coming soon...
 ## IO
