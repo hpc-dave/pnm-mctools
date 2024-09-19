@@ -58,8 +58,8 @@ Where the OpenPNM network has $`N_p`$ pores and $`N_t`$ throats. This is the min
 ```python
 from pnm_mctools import MulticomponentTools
 # define an OpenPNM network 'pn' with two coupled components
-bc_0 = {'left': {'prescribed': 1}, 'right': {'prescribed: 0} }    # boundary condition for component 0 at pores with the label 'left' and 'right'
-bc_1 = {'left': {'prescribed': 0}, 'right': {'prescribed: 1} }    # boundary condition for component 1 at pores with the label 'left' and 'right'
+bc_0 = {'left': {'prescribed': 1}, 'right': {'prescribed': 0} }    # boundary condition for component 0 at pores with the label 'left' and 'right'
+bc_1 = {'left': {'prescribed': 0}, 'right': {'prescribed': 1} }    # boundary condition for component 1 at pores with the label 'left' and 'right'
 mt = MulticomponentTools(network=pn, num_components=2, bc=[bc_0, bc_1])
 ```
 For more details have a look at the dedicated section.
@@ -134,7 +134,57 @@ for n in range(num_tsteps):
 ```
 
 ### Boundary conditions
+The boundary pores of a network are identified by a dedicated label, e.g. 'left' or 'inlet'. For each set of pores associated with a label, boundary conditions need to be applied for each component. In general, we can define a boundary condition for a single component as:
+```python
+bc = { 'label': { 'type' : value} }
+```
+For multiple sets of boundary pores, we simply add a few more:
+```python
+bc = { 'label_0': { 'type_0' : value_0},
+       'label_1': { 'type_1' : value_1}, ... }
+```
+And in the case of multiple components, we add them up in a list, where each position is associated with the component ID:
+```python
+bc_0 = { 'label_0': { 'type_0' : value_0},
+         'label_1': { 'type_1' : value_1}, ... }
+bc_1 = { 'label_0': { 'type_3' : value_3},
+         'label_1': { 'type_4' : value_4}, ... }
+bc = [bc_0, bc_1]
+```
+Finally, we give those boundary conditions to the Toolset either during initialization or afterwards for updating:
+```python
+mt = MulticomponentTools(network=pn, num_components=Nc, bc=bc)
+```
+Currently, following types of boundaries are supported:
+- `noflow`:      There is no additional flow in or out of the pore, technically this is the default if no boundary condition is provided
+- `prescribed`:  prescribes a value in the specified pore
+- `value`:       alias for `prescribed`
+- `rate`:        adds a rate value to the pore as explicit component
+- `outflow`:     labels pore as outflow and interpolates value from connected pores, here the additional value term may be ommitted
 
+A special case is the `outflow` boundary condition. There, we assume that transport from the adjacent pores is strictly directed into the labeled pore. No integration is conducted there and the values there are not conservative. To accomodate dependencies on those pores, e.g. in the case of diffusive contributions, we impose a value on the pore which is computed from a weighted average of the connected pores. **Be careful!** If a inverse flow occurs in this pore, the behavior is undefined!
+
+Here an example for a very simple setup of single-component system with a flow rate is defined at the `inlet` and a prescribed pressure at the `outlet`:
+```python
+bc = {
+    'inlet':  { 'rate' : 1e-5},
+    'outlet': { 'prescribed': 1e5 }
+}
+mt = MulticomponentTools(network=pn, num_components=Nc, bc=bc)
+```
+And for a system with 2 components, where very different boundary conditions are applied:
+```python
+bc_0 = {
+    'inlet':  { 'rate' : 1e-5},
+    'outlet': { 'outflow' }
+}
+bc_1 = {
+    'inlet':  { 'prescribed' : 1},
+    'outlet': { 'value': 1 }
+}
+bc = [bc_0, bc_1]
+mt = MulticomponentTools(network=pn, num_components=Nc, bc=bc)
+```
 
 ## Reactions
 Coming soon...
