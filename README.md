@@ -132,6 +132,10 @@ for n in range(num_tsteps):
             break
 
 ```
+
+### Boundary conditions
+
+
 ## Reactions
 Coming soon...
 ## Adsorption
@@ -142,6 +146,6 @@ The IO functionality is independent of the Toolset and contained in the IO.py fi
 from pnm_mctools import IO
 ```
 The most important functions here are:
-- network_to_vtk: similar function as `project_to_vtk` of OpenPNM allowing for convenient addition of data value sot the output
+- network_to_vtk: similar function as `project_to_vtk` of OpenPNM allowing for convenient addition of data values to the output
 - WritePoresToVTK: Writes the pores as spheres to a VTK file, good for visualization
 - WriteThroatsToVTK: Writes the throats as cylinders to a VTK file, good for visualization
