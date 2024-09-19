@@ -9,7 +9,7 @@ This repository is intended as an extension of the OpenPNM framework for conveni
 Here we follow the Finite Volume approach for discretization, where the rates are balanced over the throats. 
 For example transient diffusion-advection transport of a scalar species with first order reaction with reaction rate $`k_r`$ is expressed as:
 ```math
-\frac{\partial}{\partial t} \phi + \sum_i \vec{n}_i Q_{conv, i} + \sum_i \vec{n}_i Q_{diff, i} = k_r \phi
+\int_V \frac{\partial}{\partial t} \phi \mathrm{d}V + \sum_i \vec{n}_i Q_{conv, i} + \sum_i \vec{n}_i Q_{diff, i} = \int_V k_r \phi \mathrm{d}V
 ```
 where the rates $`Q_i`$ are considered directional with direction $`\vec{n}_i`$. A key concept for the discretization of the equations is the orientation of $`\vec{n}_i`$, as it allows convient formulation of a $`\sum`$ (sum) and $`\Delta`$ (delta) operator. As an example, consider the following common computation of steady-state hydrodynamics:
 ```math
