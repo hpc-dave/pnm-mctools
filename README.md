@@ -240,7 +240,7 @@ def Reaction(c):
 ```
 However, for the specific case of a single educt with a linear reaction rate, e.g.
 ```math
-A \longrightarrow B + C + D
+A \longrightarrow B + C
 ```
 This toolset provides a prepared solution:
 ```python
@@ -251,7 +251,17 @@ k = 1e2
 J_r = LinearReaction(network=..., num_components=3, k=1e2, educt=0, product=[1,2])
 ```
 ## Adsorption
-Coming soon...
+Adsorption may be implemented in a variety of ways and none being fully superior. This repository provides some special implementations for single component adsorption. There, isotherms are employed for the adsorption process. Following types are currently provided:
+- `Linear`:     $`y = y_{max} K \cdot c`$
+- `Langmuir`:   $`y = y_{max} \frac{K \cdot c}{1+K \cdot c}`$
+- `Freundlich`: $`y = y_{max} K c^{\frac{1}{n}}`$
+with the surface load $`y`$ in $`\mathrm{mol/m^2}`$. Additionally, a function is provided for computing the Jacobian, where adsorption is approximated in terms of a pseudo-reaction term, allowing for the separate storage of the surface load.
+There the pseudo-reaction rate is defined by:
+```math
+r_{ad} = k_r * (y_{eq} - y)~\mathrm{in mol/(m^2 s)}
+```
+with a pseudo reaction rate constant $`k_r`$. 
+
 ## IO
 The IO functionality is independent of the Toolset and contained in the IO.py file and can be imported as:
 ```python
