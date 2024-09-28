@@ -19,7 +19,7 @@ at pore $`i`$, its neighbors $`j`$ and the conductance $`g`$. This toolset now a
 ```python
 # Assume that an instance of mctools 'mctool' has been setup before:
 delta = mctool.Delta()
-sum = mctool.Sum()
+sum = mctool.get_sum()
 # then the Jacobian can be formulated as:
 J = sum(g, delta)
 ```
@@ -79,10 +79,10 @@ This whole toolset assumes that you want to assemble a Jacobian for solving your
 Every function takes the optional arguments `include` or `exclude`, which allow us to optimize the matrix and explicitly control, for wich components the matrices are computed. As an example:
 ```python
 # assume component 0 is transported between pores while component 1 is just accumulating, so there should be transport whatsoever
-c_up =  mt.Upwind(fluxes=Q_h, include=0) # only component 0 is subject to upwind fluxes, therefore all entries for component 1 will be 0
-sum = mt.sum(exclude=1)                  # here we explicitly exclude component 1 from the sum operator
-J_conv = sum(Q_h, c_up)                  # now the Jacobian for the convective transport has only 0 entries for component 1
-                                         # Note, that defining the include and/or exclude in both 'sum' and 'c_up' is redundant, once would be enough
+c_up =  mt.get_upwind_matrix(fluxes=Q_h, include=0) # only component 0 is subject to upwind fluxes, therefore all entries for component 1 will be 0
+sum = mt.get_sum(exclude=1)                         # here we explicitly exclude component 1 from the sum operator
+J_conv = sum(Q_h, c_up)                             # now the Jacobian for the convective transport has only 0 entries for component 1
+                                                    # Note, that defining the include and/or exclude in both 'sum' and 'c_up' is redundant, once would be enough
 ```
 
 ### Matrix layout and directional assembly
@@ -118,7 +118,7 @@ Following the finite volume approach, the time derivative is by default discreti
 where $`\Delta V`$ refers to the discretized volume, usually the `pore.volume` property in the OpenPNM network and $`n`$ refers to the discrete timestep.
 When solving the discretized equations, the previous time timestep is an explicit contribution which we can realize by:
 ```python
-ddt = mt.DDT(dt=dt)   # use whatever timestep you want, by default the `pore.volume` property is included
+ddt = mt.get_ddt(dt=dt)   # use whatever timestep you want, by default the `pore.volume` property is included
 J_other = ...         # define whatever other contributions you want to
 J = ddt + J_other     # assemble the full Jacobian
 # enter the time loop
@@ -208,13 +208,13 @@ J, G = mt.NumericalDifferentiation(c, defect_func=Defect)
 ```
 Especially for large systems (>5000 rows as a rough indicator), memory limitations may become problematic with the default tool. For this case, you may specify a memory wise optimization, which comes at a slight runtime penalty:
 ```python
-J, G = mt.NumericalDifferentiation(c, defect_func=Defect, type='low_mem')
+J, G = mt.conduct_numerical_differentiation(c, defect_func=Defect, type='low_mem')
 ```
 A special case of optimization you can achieve, if you know that the Jacobian is only dependent on the components and not on the connected pores, e.g. in the case of reaction in the pore:
 ```python
-J, G = mt.NumericalDifferentiation(c, defect_func=Defect, type='constrained')
+J, G = mt.conduct_numerical_differentiation(c, defect_func=Defect, type='constrained')
 # or
-J, G = mt.NumericalDifferentiation(c, defect_func=Defect, axis=1)
+J, G = mt.conduct_numerical_differentiation(c, defect_func=Defect, axis=1)
 ```
 The option `axis=1` exist for compatibility reason with the [pymrm](https://pypi.org/project/pymrm/) package.
 ## Reactions
