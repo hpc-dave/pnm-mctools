@@ -226,8 +226,8 @@ def _apply_numerical_differentiation_locally_constrained(c: np.ndarray,
     return J, G_0
 
 
-def NumericalDifferentiation(c: np.ndarray, defect_func: Callable, dc: float = 1e-6, type: str = 'full',
-                             exclude: int | list[int] = None, axis: int = None):
+def conduct_numerical_differentiation(c: np.ndarray, defect_func: Callable, dc: float = 1e-6, type: str = 'full',
+                                      exclude: int | list[int] = None, axis: int = None):
     r"""
     Conducts numerical differentiation
 
@@ -328,19 +328,19 @@ if __name__ == '__main__':
             return J_0 * c.reshape((c.size, 1))
 
         tic = time.perf_counter_ns()
-        J, G = NumericalDifferentiation(c, defect_func=Defect, type='full')
+        J, G = conduct_numerical_differentiation(c, defect_func=Defect, type='full')
         toc = time.perf_counter_ns()
         err = np.max(np.abs((J-J_0)/J_0))
         print(f'block: {(toc-tic)*1e-9:1.2e} s - max error: {err}')
 
         tic = time.perf_counter_ns()
-        J, G = NumericalDifferentiation(c, defect_func=Defect, type='low_mem')
+        J, G = conduct_numerical_differentiation(c, defect_func=Defect, type='low_mem')
         toc = time.perf_counter_ns()
         err = np.max(np.abs((J-J_0)/J_0))
         print(f'low mem: {(toc-tic)*1e-9:1.2e} s - max error: {err}')
 
         tic = time.perf_counter_ns()
-        J, G = NumericalDifferentiation(c, defect_func=Defect, type='constrained')
+        J, G = conduct_numerical_differentiation(c, defect_func=Defect, type='constrained')
         toc = time.perf_counter_ns()
         print(f'constrained: {(toc-tic)*1e-9:1.2e} s')
 

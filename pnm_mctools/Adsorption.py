@@ -1,9 +1,9 @@
 import numpy as np
 from typing import Callable
 try:
-    from .NumericalDifferentiation import NumericalDifferentiation
+    from .NumericalDifferentiation import conduct_numerical_differentiation
 except ImportError:
-    from NumericalDifferentiation import NumericalDifferentiation
+    from NumericalDifferentiation import conduct_numerical_differentiation
 
 
 def Linear(c_f, K):
@@ -152,7 +152,7 @@ def AdsorptionSingleComponent(c,
     if type == 'Defect':
         b = Defect(c)
     else:
-        A, b = NumericalDifferentiation(c, defect_func=Defect, exclude=exclude, dc=dc, type='constrained')
+        A, b = conduct_numerical_differentiation(c, defect_func=Defect, exclude=exclude, dc=dc, type='constrained')
 
     V_pore = np.hstack([V_pore for _ in range(Nc)]).reshape((-1, 1))
     b *= V_pore

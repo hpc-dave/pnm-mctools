@@ -3,9 +3,9 @@ import scipy
 import scipy.sparse
 import inspect
 try:
-    from . import NumericalDifferentiation
+    from . import NumericalDifferentiation as nc
 except ImportError:
-    import NumericalDifferentiation
+    import NumericalDifferentiation as nc
 
 
 def GetLineInfo():
@@ -1307,13 +1307,15 @@ class MulticomponentTools:
             self._sum[key] = self._construct_div(weights=weights)
         return self._sum[key]
 
-    def get_upwind_matrix(self, fluxes, include=None, exclude=None):
+    def get_upwind_matrix(self, rates=None, fluxes=None, include=None, exclude=None):
         r"""
         Constructs a [Nt, Np] matrix representing a directed network based on the upwind
         fluxes
 
         Parameters
         ----------
+        rates: any
+            rates which determine the upwind direction, see below for more details
         fluxes: any
             fluxes which determine the upwind direction, see below for more details
         include: list
@@ -1328,10 +1330,10 @@ class MulticomponentTools:
 
         Notes
         -----
-        The direction of the fluxes is directly linked with the storage of the connections
+        The direction of the rates/fluxes is directly linked with the storage of the connections
         inside the OpenPNM network. For more details, refer to the 'create_incidence_matrix' method
         of the network module.
-        The resulting matrix IS NOT SCALED with the fluxes and can also be used for determining
+        The resulting matrix IS NOT SCALED with the rates/fluxes and can also be used for determining
         upwind interpolated values.
         The provided fluxes can either be:
             int/float - single value
@@ -1343,6 +1345,13 @@ class MulticomponentTools:
         """
         include = self._get_include(include, exclude)
         key = self._convert_include_to_key(include)
+        if fluxes is None:
+            if rates is None:
+                raise ValueError('The fluxes and rates arguments are None, one of them has to be set!')
+            fluxes = rates
+        elif rates is not None:
+            raise ValueError('The arguments rates and fluxes are both defined, execution is ambigious, cannot continue')
+        
         if key not in self._upwind:
             self._upwind[key] = self._construct_upwind(fluxes=fluxes, include=include)
         return self._upwind[key]
@@ -1392,10 +1401,10 @@ class MulticomponentTools:
 
     def conduct_numerical_differentiation(self, c, defect_func, dc: float = 1e-6, mem_opt: str = 'full', type: str = 'Jacobian'):
         r"""
-        Wrapper around the NumericalDifferentiation function. For Details refer to the function itself
+        Wrapper around the conduct_numerical_differentiation function. For Details refer to the function itself
         """
         if type == 'Jacobian':
-            return NumericalDifferentiation(c=c, defect_func=defect_func, dc=dc, type=mem_opt)
+            return nc.conduct_numerical_differentiation(c=c, defect_func=defect_func, dc=dc, type=mem_opt)
         elif type == 'Defect':
             return defect_func(c).reshape((-1, 1))
         else:
