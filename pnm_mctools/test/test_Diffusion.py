@@ -52,9 +52,9 @@ def run(output: bool = True):
     # that the flux act on
     A_flux = np.zeros((network.Nt, 1), dtype=float) + network['pore.volume'][0]/spacing
 
-    grad = mt.Gradient()
-    div = mt.Divergence(weights=A_flux)
-    ddt = mt.DDT(dt=dt)
+    grad = mt.get_gradient_matrix()
+    div = mt.get_divergence(weights=A_flux)
+    ddt = mt.get_ddt(dt=dt)
 
     D = np.ones((network.Nt, Nc), dtype=float)
     J = ddt - div(D, grad)
@@ -72,20 +72,20 @@ def run(output: bool = True):
     zeta = zeta / (zeta[-1]+0.5*spacing)
     ana_sol = np.zeros_like(c)
 
-    J = mt.ApplyBC(A=J, type='Jacobian')
+    J = mt.apply_bc(A=J, type='Jacobian')
     success = True
     for t in tsteps:
         x_old = x.copy()
         pos += 1
 
         G = J * x - ddt * x_old
-        G = mt.ApplyBC(x=x, b=G, type='Defect')
+        G = mt.apply_bc(x=x, b=G, type='Defect')
         for i in range(max_iter):
             last_iter = i
             dx[:] = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
             x = x + dx
             G = J * x - ddt * x_old
-            G = mt.ApplyBC(x=x, b=G, type='Defect')
+            G = mt.apply_bc(x=x, b=G, type='Defect')
             G_norm = np.linalg.norm(np.abs(G), ord=2)
             if G_norm < tol:
                 break

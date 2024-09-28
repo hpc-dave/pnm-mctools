@@ -59,7 +59,7 @@ def run_Linear(output: bool = True):
 
     tol = 1e-12
     max_iter = 10
-    ddt = mt.DDT(dt=1.)
+    ddt = mt.get_ddt(dt=1.)
 
     success = True
     x_old = x.copy()
@@ -142,7 +142,7 @@ def run_Langmuir(output: bool = True):
 
     tol = 1e-12
     max_iter = 100
-    ddt = mt.DDT(dt=1.)
+    ddt = mt.get_ddt(dt=1.)
 
     success = True
     x_old = x.copy()
@@ -223,7 +223,7 @@ def run_Freundlich(output: bool = True):
 
     tol = 1e-12
     max_iter = 100
-    ddt = mt.DDT(dt=1.)
+    ddt = mt.get_ddt(dt=1.)
 
     success = True
     x_old = x.copy()

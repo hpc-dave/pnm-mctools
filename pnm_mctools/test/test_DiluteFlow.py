@@ -52,33 +52,33 @@ def run(output: bool = True):
     max_iter = 10
     time = dt
 
-    # need to provide div with some weights, namely an area
+    # need to provide sum with some weights, namely an area
     # that the flux acts on
     A_flux = np.zeros((network.Nt, 1), dtype=float) + network['pore.volume'][0]/spacing
     fluid_flux = sf.rate(throats=network.throats('all'), mode='single')
-    grad = mt.Gradient()
-    c_up = mt.Upwind(fluxes=fluid_flux)
-    div = mt.Divergence()
-    ddt = mt.DDT(dt=dt)
+    grad = mt.get_gradient_matrix()
+    c_up = mt.get_upwind_matrix(fluxes=fluid_flux)
+    sum = mt.get_sum()
+    ddt = mt.get_ddt(dt=dt)
 
     D = np.full((network.Nt, 1), fill_value=1e-6, dtype=float)
 
-    J = ddt - div(D, A_flux, grad) + div(fluid_flux, c_up)
+    J = ddt - sum(D, A_flux, grad) + sum(fluid_flux, c_up)
 
-    J = mt.ApplyBC(A=J)
+    J = mt.apply_bc(A=J)
     success = True
     for t in tsteps:
         x_old = x.copy()
         pos += 1
 
         G = J * x - ddt * x_old
-        G = mt.ApplyBC(x=x, b=G, type='Defect')
+        G = mt.apply_bc(x=x, b=G, type='Defect')
         for i in range(max_iter):
             last_iter = i
             dx[:] = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
             x = x + dx
             G = J * x - ddt * x_old
-            G = mt.ApplyBC(x=x, b=G, type='Defect')
+            G = mt.apply_bc(x=x, b=G, type='Defect')
             G_norm = np.linalg.norm(np.abs(G), ord=2)
             if G_norm < tol:
                 break

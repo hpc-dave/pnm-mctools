@@ -441,6 +441,99 @@ def LinearReaction(network, num_components: int, k, educt: int, product=None, we
     return scipy.sparse.csr_matrix(A)
 
 
+def _compute_flux_matrix(Nt: int, Nc: int, *args):
+        r"""
+        computes matrix of size [Np*Nc, Nt*Nc], where all arguments are multiplied with the last argument
+
+        Parameters
+        ----------
+        Factors to multiply with the final argument, where the final argument is a [Nt*Nc, Np*Nc] matrix
+
+        Returns
+        -------
+        [Np*Nc, Nt*Nc] sized matrix
+        """
+        fluxes = args[-1].copy()
+        for i in range(len(args)-1):
+            arg = args[i]
+            if isinstance(arg, list) and len(arg) == Nc:
+                fluxes = fluxes.multiply(np.tile(np.asarray(arg), Nt))
+            elif isinstance(arg, np.ndarray):
+                _arg = np.tile(arg.reshape(-1, 1), reps=(1, Nc)) if arg.size == Nt else arg
+                fluxes = fluxes.multiply(_arg.reshape(-1, 1))
+            else:
+                fluxes = fluxes.multiply(args[i])
+        return fluxes
+
+
+class SumObject:
+    r"""
+    A helper object, which acts as a matrix, but also provides convenient overloads
+    """
+    def __init__(self, matrix, Nc: int, Nt: int):
+        r"""
+        Initializes the object
+
+        Parameters
+        ----------
+        matrix:
+            A matrix for computing a sum/divergence matrix
+        Nc: int
+            number of components
+        Nt:
+            number of throats
+        """
+        self.matrix = matrix
+        self.Nt = Nt
+        self.Nc = Nc
+
+    def __mul__(self, other):
+        r"""
+        multiplication operator
+
+        Parameters
+        ----------
+        other:
+            vector, matrix or scalar to multiply with the internal matrix
+        
+        Returns
+        -------
+        quadratic matrix or vector, depending on the input type
+        """
+        return self.matrix * other
+    
+    def __matmul__(self, other):
+        r"""
+        matrix multiplication operator
+
+        Parameters
+        ----------
+        other:
+            vector, matrix or scalar to multiply with the internal matrix
+
+        Returns
+        -------
+        quadratic matrix or vector, depending on the input type
+        """
+        return self.matrix @ other
+    
+    def __call__(self, *args):
+        r"""
+        calling operator, for convenience to provide high readability of the code
+
+        Parameters
+        ----------
+        args:
+            multiple arguments, which are multiplied with the last instance
+
+        Returns
+        -------
+        quadratic matrix or vector, depending on the input type
+        """
+        return self.matrix * _compute_flux_matrix(self.Nt, self.Nc, *args)
+
+
+
 class MulticomponentTools:
     r"""
     Object with convenient methods for developing multicomponent transport models with OpenPNM pore networks.
@@ -472,7 +565,7 @@ class MulticomponentTools:
     def __init__(self, network, num_components: int = 1, bc=None):
         self._ddt = {}
         self._grad = {}
-        self._div = {}
+        self._sum = {}
         self._delta = {}
         self._sum = {}
         self._upwind = {}
@@ -486,10 +579,10 @@ class MulticomponentTools:
                     if not isinstance(inst, dict):
                         raise ValueError('the provided entry does not conform to the format {label: bc}')
                     for label, bc_l in inst.items():
-                        self.SetBC(id=id, label=label, bc=bc_l)
+                        self.set_bc(id=id, label=label, bc=bc_l)
             elif isinstance(bc, dict):
                 for label, bc_l in bc.items():
-                    self.SetBC(label=label, bc=bc_l)
+                    self.set_bc(label=label, bc=bc_l)
             else:
                 raise ValueError('incompatible boundary condition format!')
 
@@ -701,35 +794,35 @@ class MulticomponentTools:
             delta = scipy.sparse.coo_matrix((data, (rows, cols)), shape=mat_shape)
         return scipy.sparse.csr_matrix(delta)
 
-    def _compute_flux_matrix(self, *args):
-        r"""
-        computes matrix of size [Np*Nc, Nt*Nc], where all arguments are multiplied with the last argument
+    # def _compute_flux_matrix(self, *args):
+    #     r"""
+    #     computes matrix of size [Np*Nc, Nt*Nc], where all arguments are multiplied with the last argument
 
-        Parameters
-        ----------
-        Factors to multiply with the final argument, where the final argument is a [Nt*Nc, Np*Nc] matrix
+    #     Parameters
+    #     ----------
+    #     Factors to multiply with the final argument, where the final argument is a [Nt*Nc, Np*Nc] matrix
 
-        Returns
-        -------
-        [Np*Nc, Nt*Nc] sized matrix
-        """
-        network = self.network
-        Nc = self.num_components
-        fluxes = args[-1].copy()
-        for i in range(len(args)-1):
-            arg = args[i]
-            if isinstance(arg, list) and len(arg) == Nc:
-                fluxes = fluxes.multiply(np.tile(np.asarray(arg), network.Nt))
-            elif isinstance(arg, np.ndarray):
-                _arg = np.tile(arg.reshape(-1, 1), reps=(1, Nc)) if arg.size == network.Nt else arg
-                fluxes = fluxes.multiply(_arg.reshape(-1, 1))
-            else:
-                fluxes = fluxes.multiply(args[i])
-        return fluxes
+    #     Returns
+    #     -------
+    #     [Np*Nc, Nt*Nc] sized matrix
+    #     """
+    #     network = self.network
+    #     Nc = self.num_components
+    #     fluxes = args[-1].copy()
+    #     for i in range(len(args)-1):
+    #         arg = args[i]
+    #         if isinstance(arg, list) and len(arg) == Nc:
+    #             fluxes = fluxes.multiply(np.tile(np.asarray(arg), network.Nt))
+    #         elif isinstance(arg, np.ndarray):
+    #             _arg = np.tile(arg.reshape(-1, 1), reps=(1, Nc)) if arg.size == network.Nt else arg
+    #             fluxes = fluxes.multiply(_arg.reshape(-1, 1))
+    #         else:
+    #             fluxes = fluxes.multiply(args[i])
+    #     return fluxes
 
     def _construct_div(self, weights=None, custom_weights: bool = False, include=None, exclude=None):
         r"""
-        Constructs divergence matrix
+        Constructs summation matrix
 
         Parameters
         ----------
@@ -747,11 +840,11 @@ class MulticomponentTools:
 
         Returns
         -------
-            Divergence matrix
+            summation matrix
 
         Notes
         -----
-            For the discretization of the divergence, the flux in each is assumed to be directed
+            For the discretization of the sum, the rate in each is assumed to be directed
             according to underlying specification of the throats in the network. More specifically,
             the flux is directed according the to the 'throat.conn' array, from the pore in column 0 to the pore
             in column 1, e.g. if the throat.conn array looks like this:
@@ -760,7 +853,7 @@ class MulticomponentTools:
                 [1, 2]
                 [2, 3]
             ]
-            Then the fluxes are directed from pore 0 to 1, 1 to 2 and 2 to 3. A potential network could be:
+            Then the rates are directed from pore 0 to 1, 1 to 2 and 2 to 3. A potential network could be:
             (0) -> (1) -> (2) -> (3)
         """
         include = self._get_include(include, exclude)
@@ -809,11 +902,12 @@ class MulticomponentTools:
         # converting to CSR format for improved computation
         div_mat = scipy.sparse.csr_matrix(div_mat)
 
-        def div(*args):
-            fluxes = self.Fluxes(*args)
-            return div_mat * fluxes
+        return SumObject(matrix=div_mat, Nc=num_components, Nt=network.Nt)
+        # def div(*args):
+        #     fluxes = self.Fluxes(*args)
+        #     return div_mat * fluxes
 
-        return div
+        # return div
 
     def _construct_upwind(self, fluxes, include=None, exclude=None):
         r"""
@@ -989,7 +1083,7 @@ class MulticomponentTools:
         """
         return tuple(range(self.num_components) if include is None else sorted(include))
 
-    def SetBC(self, **kwargs):
+    def set_bc(self, **kwargs):
         id, label, bc = 0, 'None', None
         for key, value in kwargs.items():
             if key == 'id':
@@ -1034,7 +1128,7 @@ class MulticomponentTools:
         else:
             self.bc[id][label] = bc
 
-    def DDT(self, dt: float = 1., weight='pore.volume', include=None, exclude=None):
+    def get_ddt(self, dt: float = 1., weight='pore.volume', include=None, exclude=None):
         r"""
         Computes partial time derivative matrix
 
@@ -1060,7 +1154,7 @@ class MulticomponentTools:
             self._ddt[key] = self._construct_ddt(dt=dt, weight=weight, include=include)
         return self._ddt[key]
 
-    def Gradient(self, include=None, exclude=None):
+    def get_gradient_matrix(self, include=None, exclude=None):
         r"""
         Computes a gradient matrix
 
@@ -1081,9 +1175,9 @@ class MulticomponentTools:
             self._grad[key] = self._construct_grad(include=include)
         return self._grad[key]
 
-    def Fluxes(self, *args):
+    def compute_rates(self, *args):
         r"""
-        computes fluxes from a set of arguments
+        computes transport rates from a set of arguments
 
         Parameters
         ----------
@@ -1094,7 +1188,24 @@ class MulticomponentTools:
         """
         return self._compute_flux_matrix(*args)
 
-    def Divergence(self, weights=None, custom_weights: bool = False, include=None, exclude=None):
+    def compute_fluxes(self, *args):
+        r"""
+        computes fluxes from a set of arguments
+
+        Parameters
+        ----------
+        args:
+            Set of arguments, where the last argument is either a gradient matrix,
+            vector of fluxes at the throats or flux matrix. All arguments before will
+            be multiplied with this value
+        
+        Notes
+        -----
+        alias for compute_rates
+        """
+        return self._compute_flux_matrix(*args)
+
+    def get_divergence(self, weights=None, custom_weights: bool = False, include=None, exclude=None):
         r"""
         Constructs divergence matrix
 
@@ -1132,11 +1243,11 @@ class MulticomponentTools:
         """
         include = self._get_include(include, exclude)
         key = self._convert_include_to_key(include)
-        if key not in self._div:
-            self._div[key] = self._construct_div(weights=weights, custom_weights=custom_weights)
-        return self._div[key]
+        if key not in self._sum:
+            self._sum[key] = self._construct_div(weights=weights, custom_weights=custom_weights)
+        return self._sum[key]
 
-    def Delta(self, include=None, exclude=None):
+    def get_delta_matrix(self, include=None, exclude=None):
         r"""
         Computes a delta matrix
 
@@ -1158,7 +1269,7 @@ class MulticomponentTools:
             self._delta[key] = self._construct_delta(include=include)
         return self._delta[key]
 
-    def Sum(self, include=None, exclude=None):
+    def get_sum(self, include=None, exclude=None):
         r"""
         Constructs summation matrix
 
@@ -1196,7 +1307,7 @@ class MulticomponentTools:
             self._sum[key] = self._construct_div(weights=weights)
         return self._sum[key]
 
-    def Upwind(self, fluxes, include=None, exclude=None):
+    def get_upwind_matrix(self, fluxes, include=None, exclude=None):
         r"""
         Constructs a [Nt, Np] matrix representing a directed network based on the upwind
         fluxes
@@ -1236,7 +1347,7 @@ class MulticomponentTools:
             self._upwind[key] = self._construct_upwind(fluxes=fluxes, include=include)
         return self._upwind[key]
 
-    def CentralDifference(self, include=None, exclude=None, **kwargs):
+    def get_cds_matrix(self, include=None, exclude=None, **kwargs):
         r"""
         Constructs a [Nt, Np] matrix for the interpolation of values at the throats
         from pore values
@@ -1261,7 +1372,7 @@ class MulticomponentTools:
             self._cds[key] = self._construct_cds_interpolation(include=include)
         return self._cds[key]
 
-    def ApplyBC(self, A=None, x=None, b=None, type='Jacobian'):
+    def apply_bc(self, A=None, x=None, b=None, type='Jacobian'):
         r"""
         A wrapper around the generic ApplyBC function, which provides the network and
         BCs stored in the object
@@ -1279,7 +1390,7 @@ class MulticomponentTools:
         """
         return ApplyBC(self.network, bc=self.bc, A=A, x=x, b=b, type=type)
 
-    def NumericalDifferentiation(self, c, defect_func, dc: float = 1e-6, mem_opt: str = 'full', type: str = 'Jacobian'):
+    def conduct_numerical_differentiation(self, c, defect_func, dc: float = 1e-6, mem_opt: str = 'full', type: str = 'Jacobian'):
         r"""
         Wrapper around the NumericalDifferentiation function. For Details refer to the function itself
         """

@@ -59,7 +59,7 @@ def run(output: bool = True):
     c_up_float = mt._construct_upwind(fluxes=v[0])
     c_up_float_list = mt._construct_upwind(fluxes=v)
     c_up_array_single = mt._construct_upwind(fluxes=fluxes[:, 0])
-    c_up_arrays_mult = mt.Upwind(fluxes=fluxes)
+    c_up_arrays_mult = mt.get_upwind_matrix(fluxes=fluxes)
 
     # check the implementations
     if scipy.sparse.find(c_up_float_list - c_up_arrays_mult)[0].size > 0:
@@ -69,8 +69,8 @@ def run(output: bool = True):
         raise ('matrices are inconsistent, check implementation')
 
     c_up = c_up_arrays_mult
-    div = mt.Divergence(weights=A_flux)
-    ddt = mt.DDT(dt=dt)
+    div = mt.get_divergence(weights=A_flux)
+    ddt = mt.get_ddt(dt=dt)
 
     J = ddt + div(fluxes, c_up)
 

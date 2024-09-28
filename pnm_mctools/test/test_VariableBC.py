@@ -29,8 +29,8 @@ def run(output: bool = True):
     c = np.zeros((network.Np, Nc))
 
     mt = MulticomponentTools(network=network, num_components=Nc)
-    mt.SetBC(id=0, label='left', bc={'value': 1.})
-    mt.SetBC(id=1, label='right', bc={'value': 1.})
+    mt.set_bc(id=0, label='left', bc={'value': 1.})
+    mt.set_bc(id=1, label='right', bc={'value': 1.})
 
     x = np.ndarray.flatten(c).reshape((c.size, 1))
     dx = np.zeros_like(x)
@@ -50,30 +50,30 @@ def run(output: bool = True):
     fluxes[:, 0] = v[0]
     fluxes[:, 1] = v[1]
 
-    c_up = mt.Upwind(fluxes=fluxes)
-    div = mt.Divergence(weights=A_flux)
-    ddt = mt.DDT(dt=dt)
+    c_up = mt.get_upwind_matrix(fluxes=fluxes)
+    div = mt.get_divergence(weights=A_flux)
+    ddt = mt.get_ddt(dt=dt)
 
     J = ddt + div(fluxes, c_up)
-    J = mt.ApplyBC(A=J, x=x)
+    J = mt.apply_bc(A=J, x=x)
 
     success = True
     for n in range(len(tsteps)):
         x_old = x.copy()
         if n == 100:
             # update BC
-            mt.SetBC(id=0, label='left', bc={'value': 0.})
-            mt.SetBC(id=1, label='right', bc={'value': 0.})
+            mt.set_bc(id=0, label='left', bc={'value': 0.})
+            mt.set_bc(id=1, label='right', bc={'value': 0.})
             # no need to update the matrix
 
         G = J * x - ddt * x_old
-        G = mt.ApplyBC(b=G, x=x, type='Defect')
+        G = mt.apply_bc(b=G, x=x, type='Defect')
         for i in range(max_iter):
             last_iter = i
             dx[:] = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
             x = x + dx
             G = J * x - ddt * x_old
-            G = mt.ApplyBC(b=G, x=x, type='Defect')
+            G = mt.apply_bc(b=G, x=x, type='Defect')
             G_norm = np.linalg.norm(np.abs(G), ord=2)
             if G_norm < tol:
                 break
@@ -89,3 +89,11 @@ def run(output: bool = True):
         time += dt
 
     return success
+
+if __name__ == "__main__":
+    success = run()
+
+    if success:
+        print('success')
+    else:
+        print('fail')

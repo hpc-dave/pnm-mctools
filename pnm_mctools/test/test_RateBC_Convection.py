@@ -56,12 +56,12 @@ def run(output: bool = True):
     fluxes[:, 0] = v[0]
     fluxes[:, 1] = v[1]
 
-    c_up = mt.Upwind(fluxes=fluxes)
-    div = mt.Divergence(weights=A_flux)
-    ddt = mt.DDT(dt=dt)
+    c_up = mt.get_upwind_matrix(fluxes=fluxes)
+    div = mt.get_divergence(weights=A_flux)
+    ddt = mt.get_ddt(dt=dt)
 
     J = ddt + div(fluxes, c_up)
-    J = mt.ApplyBC(A=J, x=x)
+    J = mt.apply_bc(A=J, x=x)
 
     mass_init = np.sum(c * network['pore.volume'].reshape(network.Np, 1), axis=0)
 
@@ -71,13 +71,13 @@ def run(output: bool = True):
         pos += 1
 
         G = J * x - ddt * x_old
-        G = mt.ApplyBC(b=G, x=x, type='Defect')
+        G = mt.apply_bc(b=G, x=x, type='Defect')
         for i in range(max_iter):
             last_iter = i
             dx[:] = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
             x = x + dx
             G = J * x - ddt * x_old
-            G = mt.ApplyBC(b=G, x=x, type='Defect')
+            G = mt.apply_bc(b=G, x=x, type='Defect')
             G_norm = np.linalg.norm(np.abs(G), ord=2)
             if G_norm < tol:
                 break
@@ -95,3 +95,6 @@ def run(output: bool = True):
         time += dt
 
     return success
+
+if __name__ == "__main__":
+    run()

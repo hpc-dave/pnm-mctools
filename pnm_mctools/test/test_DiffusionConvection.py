@@ -43,32 +43,32 @@ def run(output: bool = True):
     max_iter = 10
     time = dt
 
-    # need to provide div with some weights, namely an area
+    # need to provide sum with some weights, namely an area
     # that the flux acts on
     A_flux = np.zeros((network.Nt, 1), dtype=float) + network['pore.volume'][0]/spacing
 
-    grad = mt.Gradient()
-    c_up = mt.Upwind(fluxes=v)
-    div = mt.Divergence(weights=A_flux)
-    ddt = mt.DDT(dt=dt)
+    grad = mt.get_gradient_matrix()
+    c_up = mt.get_upwind_matrix(fluxes=v)
+    div = mt.get_divergence(weights=A_flux)
+    ddt = mt.get_ddt(dt=dt)
 
     D = np.zeros((network.Nt, 1), dtype=float) + 1e-3
     J = ddt - div(D, grad) + div(v, c_up)
 
-    J = mt.ApplyBC(A=J)
+    J = mt.apply_bc(A=J)
     success = True
     for t in tsteps:
         x_old = x.copy()
         pos += 1
 
         G = J * x - ddt * x_old
-        G = mt.ApplyBC(x=x, b=G, type='Defect')
+        G = mt.apply_bc(x=x, b=G, type='Defect')
         for i in range(max_iter):
             last_iter = i
             dx[:] = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
             x = x + dx
             G = J * x - ddt * x_old
-            G = mt.ApplyBC(x=x, b=G, type='Defect')
+            G = mt.apply_bc(x=x, b=G, type='Defect')
             G_norm = np.linalg.norm(np.abs(G), ord=2)
             if G_norm < tol:
                 break
@@ -81,3 +81,6 @@ def run(output: bool = True):
 
     print('DiffusionConvection test does not have a success criteria yet!')
     return success
+
+if __name__ == "__main__":
+    run()
