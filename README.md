@@ -18,7 +18,7 @@ where the rates $`Q_i`$ are considered directional with direction $`\vec{n}_i`$.
 at pore $`i`$, its neighbors $`j`$ and the conductance $`g`$. This toolset now allows us to use following implementation:
 ```python
 # Assume that an instance of mctools 'mctool' has been setup before:
-delta = mctool.Delta()
+delta = mctool.get_delta_matrix()
 sum = mctool.get_sum()
 # then the Jacobian can be formulated as:
 J = sum(g, delta)
@@ -64,14 +64,14 @@ mt = MulticomponentTools(network=pn, num_components=2, bc=[bc_0, bc_1])
 ```
 For more details have a look at the dedicated section.
 Now we have everything set up and can start actually using the tools. Currently supported functionality is:
-- Delta: A $`N_t`$ x $`N_p`$ sparse matrix for evaluating the differences at the throats
-- Sum: A function object, which returns a $`N_p`$x$`N_p`$ sparse matrix, requiring at least a $`N_t`$ x $`N_p`$ matrix as last input parameter
-- DDT: A $`N_p`$x$`N_p`$ sparse matrix, representing the discretized temporal derivative
-- Upwind: A $`N_t`$ x $`N_p`$ sparse matrix with interpolation based on the upwind scheme, defined by a provided list of fluxes
-- CentralDifference: A $`N_t`$ x $`N_p`$ sparse matrix with interpolation based on the central difference scheme
-- SetBC: Allows adding or updating a boundary condition
-- ApplyBC: Adapts the Jacobian or Defect according to the defined boundary conditions, if necessary
-- NumericalDifferentiation: Returns a $`N_p`$x$`N_p`$ sparse matrix based on numerical differentiation of a provided defect
+- `get_delta_matrix`: A $`N_t`$ x $`N_p`$ sparse matrix for evaluating the differences at the throats
+- `get_sum`: A function object, which works as a sparse matrix, but also allows mulitple input values with appropriate scaling; returns a $`N_p`$x$`N_p`$ sparse matrix, requiring either a $`N_t`$ x $`N_p`$ matrix or a vector of length $`N_p`$
+- `get_ddt`: A $`N_p`$x$`N_p`$ sparse matrix, representing the discretized temporal derivative
+- `get_upwind_matrix`: A $`N_t`$ x $`N_p`$ sparse matrix with interpolation based on the upwind scheme, defined by a provided list of fluxes
+- `get_cds_matrix`: A $`N_t`$ x $`N_p`$ sparse matrix with interpolation based on the central difference scheme
+- `set_bc`: Allows adding or updating a boundary condition
+- `apply_bc`: Adapts the Jacobian or Defect according to the defined boundary conditions, if necessary
+- `conduct_numerical_differentiation`: Returns a $`N_p`$x$`N_p`$ sparse matrix based on numerical differentiation of a provided defect
 
 This whole toolset assumes that you want to assemble a Jacobian for solving your system. For linear models, the Jacobian and the regular discretized matrices are identical, so you can perform point-iterations. However, in the case that you don't want to assemble Jacobians, make sure that your computations are still correct!
 
