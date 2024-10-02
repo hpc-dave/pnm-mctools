@@ -1,10 +1,6 @@
 import numpy as np
 import scipy
 import scipy.sparse
-try:
-    from .NumericalDifferentiation import NumericalDifferentiation
-except ImportError:
-    from NumericalDifferentiation import NumericalDifferentiation
 
 
 def LinearReaction(network, num_components: int, k, educt: int, product=None, weight='pore.volume'):
