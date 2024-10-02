@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pnm_mctools"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
     "numpy",
     "openpnm",
@@ -25,7 +25,7 @@ license = {file = "LICENSE"}
 keywords = ["pnm", "image", "analysis", "multicomponent"]
 
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Programming Language :: Python",
     "License :: OSI Approved :: MIT License"
 ]
