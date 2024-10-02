@@ -877,11 +877,6 @@ class MulticomponentTools:
         div_mat = scipy.sparse.csr_matrix(div_mat)
 
         return SumObject(matrix=div_mat, Nc=num_components, Nt=network.Nt)
-        # def div(*args):
-        #     fluxes = self.Fluxes(*args)
-        #     return div_mat * fluxes
-
-        # return div
 
     def _construct_upwind(self, fluxes, include=None, exclude=None):
         r"""
@@ -1160,7 +1155,7 @@ class MulticomponentTools:
             vector of fluxes at the throats or flux matrix. All arguments before will
             be multiplied with this value
         """
-        return _compute_flux_matrix(self.Nt, self.Nc, *args)
+        return _compute_flux_matrix(self.network.Nt, self.Nc, *args)
 
     def compute_fluxes(self, *args):
         r"""
@@ -1177,7 +1172,7 @@ class MulticomponentTools:
         -----
         alias for compute_rates
         """
-        return _compute_flux_matrix(self.Nt, self.Nc, *args)
+        return _compute_flux_matrix(self.network.Nt, self.Nc, *args)
 
     def get_divergence(self, weights=None, custom_weights: bool = False, include=None, exclude=None):
         r"""
