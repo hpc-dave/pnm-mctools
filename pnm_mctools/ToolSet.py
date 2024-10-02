@@ -794,32 +794,6 @@ class MulticomponentTools:
             delta = scipy.sparse.coo_matrix((data, (rows, cols)), shape=mat_shape)
         return scipy.sparse.csr_matrix(delta)
 
-    # def _compute_flux_matrix(self, *args):
-    #     r"""
-    #     computes matrix of size [Np*Nc, Nt*Nc], where all arguments are multiplied with the last argument
-
-    #     Parameters
-    #     ----------
-    #     Factors to multiply with the final argument, where the final argument is a [Nt*Nc, Np*Nc] matrix
-
-    #     Returns
-    #     -------
-    #     [Np*Nc, Nt*Nc] sized matrix
-    #     """
-    #     network = self.network
-    #     Nc = self.num_components
-    #     fluxes = args[-1].copy()
-    #     for i in range(len(args)-1):
-    #         arg = args[i]
-    #         if isinstance(arg, list) and len(arg) == Nc:
-    #             fluxes = fluxes.multiply(np.tile(np.asarray(arg), network.Nt))
-    #         elif isinstance(arg, np.ndarray):
-    #             _arg = np.tile(arg.reshape(-1, 1), reps=(1, Nc)) if arg.size == network.Nt else arg
-    #             fluxes = fluxes.multiply(_arg.reshape(-1, 1))
-    #         else:
-    #             fluxes = fluxes.multiply(args[i])
-    #     return fluxes
-
     def _construct_div(self, weights=None, custom_weights: bool = False, include=None, exclude=None):
         r"""
         Constructs summation matrix
@@ -1186,7 +1160,7 @@ class MulticomponentTools:
             vector of fluxes at the throats or flux matrix. All arguments before will
             be multiplied with this value
         """
-        return self._compute_flux_matrix(*args)
+        return _compute_flux_matrix(self.Nt, self.Nc, *args)
 
     def compute_fluxes(self, *args):
         r"""
@@ -1203,7 +1177,7 @@ class MulticomponentTools:
         -----
         alias for compute_rates
         """
-        return self._compute_flux_matrix(*args)
+        return _compute_flux_matrix(self.Nt, self.Nc, *args)
 
     def get_divergence(self, weights=None, custom_weights: bool = False, include=None, exclude=None):
         r"""
