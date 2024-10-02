@@ -1155,7 +1155,7 @@ class MulticomponentTools:
             vector of fluxes at the throats or flux matrix. All arguments before will
             be multiplied with this value
         """
-        return _compute_flux_matrix(self.network.Nt, self.Nc, *args)
+        return _compute_flux_matrix(self.network.Nt, self.num_components, *args)
 
     def compute_fluxes(self, *args):
         r"""
@@ -1172,7 +1172,7 @@ class MulticomponentTools:
         -----
         alias for compute_rates
         """
-        return _compute_flux_matrix(self.network.Nt, self.Nc, *args)
+        return self.compute_rates(*args)
 
     def get_divergence(self, weights=None, custom_weights: bool = False, include=None, exclude=None):
         r"""
