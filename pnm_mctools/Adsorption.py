@@ -143,7 +143,7 @@ def AdsorptionSingleComponent(c,
         y_ads = c[:, adsorbed].reshape((-1, 1))
         y_ads_eq = y_func(c_f, y_ads)
         r_ads = k_r * (y_ads_eq - y_ads)
-        r_f = -a_v * r_ads
+        r_f = -a_v.reshape((-1, 1)) * r_ads
         G = np.zeros((Np * Nc, 1), dtype=float)
         G[rows, :] = r_f
         G[rows + delta_n, :] = r_ads
