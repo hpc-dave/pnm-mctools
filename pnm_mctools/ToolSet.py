@@ -2,6 +2,7 @@ import numpy as np
 import scipy
 import scipy.sparse
 import inspect
+from typing import List
 try:
     from . import NumericalDifferentiation as nc
 except ImportError:
@@ -466,6 +467,49 @@ def _compute_flux_matrix(Nt: int, Nc: int, *args):
         return fluxes
 
 
+def compute_pore_residence_time(Q: np.ndarray, Vp: np.ndarray, A_dir, approach:str = 'min'):
+    r"""
+    Computes the residence time for each pore, depending on the provided throat rates
+
+    Parameters
+    ----------
+    Q: np.ndarray
+        array of size [Np] with flow rates through the pores
+    Vp: np.ndarray
+        array of size [Np] with pore volumes
+    A_dir: sparse matrix
+        matrix of size [Np, Nt] with directional information, usually the 'sum' or 'divergence' matrix
+    approach: str
+        identifier of the criteria for computing the residence time, current options are
+        - 'inflow': select only flow rates directed into the pore
+        - 'outflow': select only flow rates out of the pore
+        - 'min': minimum of 'inflow' and 'outflow' option
+
+    Returns
+    -------
+    array of size [Np] with residence time in each pore
+    """
+
+    approach_options = ['inflow', 'outflow', 'min']
+    if approach not in approach_options:
+        raise ValueError(f'Cannot compute residence time, unknown approach: {approach}! Available options are {approach_options}')
+
+    Q_dir = A_dir.multiply(Q.reshape((-1)))
+    tau_in = np.zeros_like(Vp)  # dummy for inflow residence time
+    tau_out = tau_in.copy()     # dummy for outflow residence time
+    if (approach == 'inflow') or (approach == 'min'):
+        Q_in = Q_dir.multiply(Q_dir < 0.) # matrix solely with negative flow rates
+        Q_in = np.abs(np.sum(Q_in, axis=1)) # sum up all the inflow rates
+        tau_in = Vp.reshape((-1,1))/Q_in  # determine the local residence time
+    if (approach == 'outflow') or (approach == 'min'):
+        Q_out = Q_dir.multiply(Q_dir > 0.) # matrix solely with positive flow rates
+        Q_out = np.abs(np.sum(Q_out, axis=1)) # sum up all the outflow rates
+        tau_out = Vp.reshape((-1,1))/Q_out # determine the local residence time
+
+    tau = np.min(np.hstack((tau_in, tau_out)), axis=1)  # maximum or the residence times
+    return np.array(tau)
+
+
 class SumObject:
     r"""
     A helper object, which acts as a matrix, but also provides convenient overloads
@@ -531,6 +575,9 @@ class SumObject:
         quadratic matrix or vector, depending on the input type
         """
         return self.matrix * _compute_flux_matrix(self.Nt, self.Nc, *args)
+
+    def multiply(self, *args, **kwargs):
+        return self.matrix.multiply(*args, **kwargs)
 
 
 
@@ -794,7 +841,7 @@ class MulticomponentTools:
             delta = scipy.sparse.coo_matrix((data, (rows, cols)), shape=mat_shape)
         return scipy.sparse.csr_matrix(delta)
 
-    def _construct_div(self, weights=None, custom_weights: bool = False, include=None, exclude=None):
+    def _construct_div(self, weights=None, custom_weights: bool = False, include=None, exclude=None, as_singlecomponent:bool = False):
         r"""
         Constructs summation matrix
 
@@ -811,6 +858,8 @@ class MulticomponentTools:
         exclude: list
             identifier, which components shall be exluded, respectively which rows shall be
             set to 0. Without effect if include is specified
+        as_singlecomponent: bool
+            option for providing the matrix as for a single component, by default false
 
         Returns
         -------
@@ -832,7 +881,7 @@ class MulticomponentTools:
         """
         include = self._get_include(include, exclude)
         network = self.network
-        num_components = self.num_components
+        num_components = 1 if as_singlecomponent else self.num_components
         _weights = None
         if custom_weights:
             if weights is None:
@@ -988,7 +1037,9 @@ class MulticomponentTools:
             upwind = scipy.sparse.coo_matrix((data, (rows, cols)), shape=mat_shape)
             return scipy.sparse.csr_matrix(upwind)
 
-    def _construct_cds_interpolation(self, include=None, exclude=None):
+    def _construct_cds_interpolation(self,
+                                     include:int|List[int]|None = None,
+                                     exclude:int|List[int]|None = None):
         r"""
         Constructs a [Nt, Np] matrix for the interpolation of values at the throats
         from pore values
@@ -1037,7 +1088,7 @@ class MulticomponentTools:
             cds = scipy.sparse.coo_matrix((data, (rows, cols)), shape=mat_shape)
             return scipy.sparse.csr_matrix(cds)
 
-    def _convert_include_to_key(self, include):
+    def _convert_include_to_key(self, include: List[int]|None):
         r"""
         provides a key based on the include list
 
@@ -1097,7 +1148,11 @@ class MulticomponentTools:
         else:
             self.bc[id][label] = bc
 
-    def get_ddt(self, dt: float = 1., weight='pore.volume', include=None, exclude=None):
+    def get_ddt(self,
+                dt: float = 1.,
+                weight='pore.volume',
+                include:int|List[int]|None = None,
+                exclude:int|List[int]|None = None):
         r"""
         Computes partial time derivative matrix
 
@@ -1123,16 +1178,21 @@ class MulticomponentTools:
             self._ddt[key] = self._construct_ddt(dt=dt, weight=weight, include=include)
         return self._ddt[key]
 
-    def get_gradient_matrix(self, include=None, exclude=None):
+    def get_gradient_matrix(self,
+                            conduit_length: str|np.ndarray|None = None,
+                            include:int|List[int]|None = None,
+                            exclude:int|List[int]|None = None):
         r"""
         Computes a gradient matrix
 
         Parameters
         ----------
-        include:
+        conduit_length: str|np.ndarray|None
+            length of the conduit for computation of the gradient, by default the distance between pore centers is utilized
+        include: int|[int]|None
             int or list of ints with IDs to include, if 'None' is provided
             all IDs will be included
-        exlude:
+        exlude: int|[int]|None
             inverse of include, without effect if include is specified
         Returns
         -------
@@ -1141,7 +1201,7 @@ class MulticomponentTools:
         include = self._get_include(include, exclude)
         key = self._convert_include_to_key(include)
         if key not in self._grad:
-            self._grad[key] = self._construct_grad(include=include)
+            self._grad[key] = self._construct_grad(conduit_length=conduit_length, include=include)
         return self._grad[key]
 
     def compute_rates(self, *args):
@@ -1174,7 +1234,7 @@ class MulticomponentTools:
         """
         return self.compute_rates(*args)
 
-    def get_divergence(self, weights=None, custom_weights: bool = False, include=None, exclude=None):
+    def get_divergence(self, weights=None, custom_weights: bool = False, include=None, exclude=None, as_singlecomponent: bool = False):
         r"""
         Constructs divergence matrix
 
@@ -1191,6 +1251,8 @@ class MulticomponentTools:
         exclude: list
             identifier, which components shall be exluded, respectively which rows shall be
             set to 0. Without effect if include is specified
+        as_singlecomponent: bool
+            provides the sum as single component version, by default false
 
         Returns
         -------
@@ -1210,10 +1272,14 @@ class MulticomponentTools:
             Then the fluxes are directed from pore 0 to 1, 1 to 2 and 2 to 3. A potential network could be:
             (0) -> (1) -> (2) -> (3)
         """
+        if as_singlecomponent:
+            return self._construct_div(weights=weights, include=include, custom_weights=custom_weights, as_singlecomponent=as_singlecomponent)
+
         include = self._get_include(include, exclude)
         key = self._convert_include_to_key(include)
         if key not in self._sum:
-            self._sum[key] = self._construct_div(weights=weights, custom_weights=custom_weights)
+            self._sum[key] = self._construct_div(weights=weights, include=include, custom_weights=custom_weights)
+
         return self._sum[key]
 
     def get_delta_matrix(self, include=None, exclude=None):
@@ -1238,7 +1304,7 @@ class MulticomponentTools:
             self._delta[key] = self._construct_delta(include=include)
         return self._delta[key]
 
-    def get_sum(self, include=None, exclude=None):
+    def get_sum(self, include=None, exclude=None, as_singlecomponent: bool = False):
         r"""
         Constructs summation matrix
 
@@ -1250,6 +1316,8 @@ class MulticomponentTools:
         exclude: list
             identifier, which components shall be exluded, respectively which rows shall be
             set to 0. Without effect if include is specified
+        as_singlecomponent: bool
+            provides the sum as single component version, by default false
 
         Returns
         -------
@@ -1271,9 +1339,13 @@ class MulticomponentTools:
         """
         include = self._get_include(include, exclude)
         key = self._convert_include_to_key(include)
+        if as_singlecomponent:
+            weights = np.ones_like(self.network['throat.conns'][:, 0], dtype=float)
+            return self._construct_div(weights=weights, include=include, as_singlecomponent=as_singlecomponent)
+    
         if key not in self._sum:
             weights = np.ones_like(self.network['throat.conns'][:, 0], dtype=float)
-            self._sum[key] = self._construct_div(weights=weights)
+            self._sum[key] = self._construct_div(weights=weights, include=include, as_singlecomponent=as_singlecomponent)
         return self._sum[key]
 
     def get_upwind_matrix(self, rates=None, fluxes=None, include=None, exclude=None):
@@ -1378,3 +1450,48 @@ class MulticomponentTools:
             return defect_func(c).reshape((-1, 1))
         else:
             raise ValueError('Unknown type for numerical differentiation')
+        
+    def compute_pore_residence_time(self, Q: np.ndarray, approach:str = 'min', A_dir = None, Vp: np.ndarray|str = 'pore.volume'):
+        r"""
+        Computes the residence time for each pore
+
+        Parameters
+        ----------
+        Q: np.ndarray
+            array of size [Nt] of the flow rates in the throats
+        approach: str
+            type of approach for determining the pore residence time, current options are:
+            - 'inflow' sum of flow rates into the pore
+            - 'outflow' sum of flow rates out of the pore
+            - 'min' minimum of the two above mentioned approaches
+        A_dir: sparse matrix|None
+            a sparse matrix of size [Np, Nt] with direction of the flow rates, the values should be either [-1, 0, 1]!
+            by default the appropriate matrix will be determined from the underlying network
+        Vp: np.ndarray|str
+            array of size [Np] of the individual pore volumes or a string to infer those values from the underlying network
+
+        Returns
+        -------
+        array of size [Np] with the residence time per pore
+
+        Notes
+        -----
+        The residence time is computed by
+        \[f
+            \tau_i = \frac{V_{p, i}}{Q_{total},i}
+        \]
+        where the flow rate through a pore can be based on the in- or the outflow
+        \[f
+            Q_{total,i} = Q_{in/out,i} = \sum_j Q_{in/out, ij}
+        \]
+        or the minimum of the two options:
+        \[f
+            Q_{total,i} = min(\sum_j Q_{in, ij}, \sum_j Q_{out, ij})
+        \]
+        """
+        if A_dir is None:
+            A_dir = self.get_sum(as_singlecomponent=True)
+        if isinstance(Vp, str):
+            Vp = self.network[Vp]
+
+        return compute_pore_residence_time(Q=Q, Vp=Vp, A_dir=A_dir, approach=approach)
