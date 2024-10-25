@@ -17,9 +17,10 @@ where the rates $`Q_i`$ are considered directional with direction $`\vec{n}_i`$.
 ```
 at pore $`i`$, its neighbors $`j`$ and the conductance $`g`$. This toolset now allows us to use following implementation:
 ```python
+from pnm_mctools import Operators as ops
 # Assume that an instance of mctools 'mctool' has been setup before:
-delta = mctool.get_delta_matrix()
-sum = mctool.get_sum()
+delta = ops.delta(mctool)
+sum = ops.sum(mctool)
 # then the Jacobian can be formulated as:
 J = sum(g, delta)
 ```
@@ -54,24 +55,27 @@ from pnm_mctools import MulticomponentTools
 # define an OpenPNM network 'pn' with a number of coupled components 'Nc'
 mt = MulticomponentTools(network=pn, num_components=Nc)
 ```
-Where the OpenPNM network has $`N_p`$ pores and $`N_t`$ throats. This is the minimal setup, then no explicit boundary conditions will be applied to the system. In practice that means that no manipulation of the matrices or defects is conducted, leading to a no-flux boundary condition for boundary pores. In case we want to apply boundary conditions, we have to do the following:
+Where the OpenPNM network has $`N_p`$ pores and $`N_t`$ throats. This is the minimal setup, then no boundary conditions will be applied to the system. In practice that means that no manipulation of the matrices or defects is conducted, leading to a no-flux boundary condition for boundary pores. In case we want to apply boundary conditions, we have to do the following:
 ```python
 from pnm_mctools import MulticomponentTools
+from pnm_mctools import BoundaryConditions as bc
 # define an OpenPNM network 'pn' with two coupled components
-bc_0 = {'left': {'prescribed': 1}, 'right': {'prescribed': 0} }    # boundary condition for component 0 at pores with the label 'left' and 'right'
-bc_1 = {'left': {'prescribed': 0}, 'right': {'prescribed': 1} }    # boundary condition for component 1 at pores with the label 'left' and 'right'
-mt = MulticomponentTools(network=pn, num_components=2, bc=[bc_0, bc_1])
+mt = MulticomponentTools(network=pn, num_components=2)
+bc.set(mt, id=0, label='left', bc={'prescribed': 1.}      # boundary condition for component 0 at pores with the label 'left'
+bc.set(mt, id=0, label='right', bc={'prescribed': 0.}     # boundary condition for component 0 at pores with the label 'right'
+bc.set(mt, id=1, label='left', bc={'prescribed': 0.}      # boundary condition for component 1 at pores with the label 'left'
+bc.set(mt, id=1, label='right', bc={'prescribed': 1.}     # boundary condition for component 1 at pores with the label 'right'
 ```
 For more details have a look at the dedicated section.
 Now we have everything set up and can start actually using the tools. Currently supported functionality is:
-- `get_delta_matrix`: A $`N_t`$ x $`N_p`$ sparse matrix for evaluating the differences at the throats
-- `get_sum`: A function object, which works as a sparse matrix, but also allows mulitple input values with appropriate scaling; returns a $`N_p`$x$`N_p`$ sparse matrix, requiring either a $`N_t`$ x $`N_p`$ matrix or a vector of length $`N_p`$
-- `get_ddt`: A $`N_p`$x$`N_p`$ sparse matrix, representing the discretized temporal derivative
-- `get_upwind_matrix`: A $`N_t`$ x $`N_p`$ sparse matrix with interpolation based on the upwind scheme, defined by a provided list of fluxes
-- `get_cds_matrix`: A $`N_t`$ x $`N_p`$ sparse matrix with interpolation based on the central difference scheme
-- `set_bc`: Allows adding or updating a boundary condition
-- `apply_bc`: Adapts the Jacobian or Defect according to the defined boundary conditions, if necessary
-- `conduct_numerical_differentiation`: Returns a $`N_p`$x$`N_p`$ sparse matrix based on numerical differentiation of a provided defect
+- `delta`: A $`N_t`$ x $`N_p`$ sparse matrix for evaluating the differences at the throats in `Operators`
+- `sum`: A function object, which works as a sparse matrix, but also allows mulitple input values with appropriate scaling; returns a $`N_p`$x$`N_p`$ sparse matrix, requiring either a $`N_t`$ x $`N_p`$ matrix or a vector of length $`N_p`$ in `Operators`
+- `ddt`: A $`N_p`$x$`N_p`$ sparse matrix, representing the discretized temporal derivative in `Operators`
+- `upwind`: A $`N_t`$ x $`N_p`$ sparse matrix with interpolation based on the upwind scheme, defined by a provided list of fluxes in `Interpolation`
+- `central_difference`: A $`N_t`$ x $`N_p`$ sparse matrix with interpolation based on the central difference scheme in `Interpolation`
+- `set`: Allows adding or updating a boundary condition in `BoundaryConditions`
+- `apply`: Adapts the Jacobian or Defect according to the defined boundary conditions, if necessary, in `BoundaryConditions`
+- `conduct_numerical_differentiation`: Returns a $`N_p`$x$`N_p`$ sparse matrix based on numerical differentiation of a provided defect in `NumericalDifferentiation`
 
 This whole toolset assumes that you want to assemble a Jacobian for solving your system. For linear models, the Jacobian and the regular discretized matrices are identical, so you can perform point-iterations. However, in the case that you don't want to assemble Jacobians, make sure that your computations are still correct!
 
@@ -79,8 +83,8 @@ This whole toolset assumes that you want to assemble a Jacobian for solving your
 Every function takes the optional arguments `include` or `exclude`, which allow us to optimize the matrix and explicitly control, for wich components the matrices are computed. As an example:
 ```python
 # assume component 0 is transported between pores while component 1 is just accumulating, so there should be transport whatsoever
-c_up =  mt.get_upwind_matrix(fluxes=Q_h, include=0) # only component 0 is subject to upwind fluxes, therefore all entries for component 1 will be 0
-sum = mt.get_sum(exclude=1)                         # here we explicitly exclude component 1 from the sum operator
+c_up =  ip.upwind(mctools, fluxes=Q_h, include=0)   # only component 0 is subject to upwind fluxes, therefore all entries for component 1 will be 0
+sum = ops.sum(mctools, exclude=1)                   # here we explicitly exclude component 1 from the sum operator
 J_conv = sum(Q_h, c_up)                             # now the Jacobian for the convective transport has only 0 entries for component 1
                                                     # Note, that defining the include and/or exclude in both 'sum' and 'c_up' is redundant, once would be enough
 ```
@@ -118,7 +122,7 @@ Following the finite volume approach, the time derivative is by default discreti
 where $`\Delta V`$ refers to the discretized volume, usually the `pore.volume` property in the OpenPNM network and $`n`$ refers to the discrete timestep.
 When solving the discretized equations, the previous time timestep is an explicit contribution which we can realize by:
 ```python
-ddt = mt.get_ddt(dt=dt)   # use whatever timestep you want, by default the `pore.volume` property is included
+ddt = ops.ddt(mctools, dt=dt)   # use whatever timestep you want, by default the `pore.volume` property is included
 J_other = ...         # define whatever other contributions you want to
 J = ddt + J_other     # assemble the full Jacobian
 # enter the time loop
@@ -137,26 +141,23 @@ for n in range(num_tsteps):
 ```
 
 ### Boundary conditions
-The boundary pores of a network are identified by a dedicated label, e.g. 'left' or 'inlet'. For each set of pores associated with a label, boundary conditions need to be applied for each component. In general, we can define a boundary condition for a single component as:
+The boundary pores of a network are identified by a dedicated label, e.g. 'left' or 'inlet'. For each set of pores associated with a label, boundary conditions need to be applied for each component. Each boundary condition is provided to the MulticomponentTools instance:
 ```python
-bc = { 'label': { 'type' : value} }
+from pnm_mctools import MulticomponentTools
+from pnm_mctools import BoundaryConditions as bc
+...
+mt = MulticomponentTools(....)
+bc.set(mt, label='label1', bc = {'type1': value1})
+bc.set(mt, label='label2', bc = {'type2': value2})
 ```
-For multiple sets of boundary pores, we simply add a few more:
+And in the case of multiple components, we can provide a component ID:
 ```python
-bc = { 'label_0': { 'type_0' : value_0},
-       'label_1': { 'type_1' : value_1}, ... }
-```
-And in the case of multiple components, we add them up in a list, where each position is associated with the component ID:
-```python
-bc_0 = { 'label_0': { 'type_0' : value_0},
-         'label_1': { 'type_1' : value_1}, ... }
-bc_1 = { 'label_0': { 'type_3' : value_3},
-         'label_1': { 'type_4' : value_4}, ... }
-bc = [bc_0, bc_1]
-```
-Finally, we give those boundary conditions to the Toolset either during initialization or afterwards for updating:
-```python
-mt = MulticomponentTools(network=pn, num_components=Nc, bc=bc)
+from pnm_mctools import MulticomponentTools
+from pnm_mctools import BoundaryConditions as bc
+...
+mt = MulticomponentTools(....)
+bc.set(mt, id=0, label='label1', bc = {'type1': value1})
+bc.set(mt, id=1, label='label1', bc = {'type2': value2})
 ```
 Currently, following types of boundaries are supported:
 - `noflow`:      There is no additional flow in or out of the pore, technically this is the default if no boundary condition is provided
@@ -166,28 +167,6 @@ Currently, following types of boundaries are supported:
 - `outflow`:     labels pore as outflow and interpolates value from connected pores, here the additional value term may be ommitted
 
 A special case is the `outflow` boundary condition. There, we assume that transport from the adjacent pores is strictly directed into the labeled pore. No integration is conducted there and the values there are not conservative. To accomodate dependencies on those pores, e.g. in the case of diffusive contributions, we impose a value on the pore which is computed from a weighted average of the connected pores. **Be careful!** If a inverse flow occurs in this pore, the behavior is undefined!
-
-Here an example for a very simple setup of single-component system with a flow rate is defined at the `inlet` and a prescribed pressure at the `outlet`:
-```python
-bc = {
-    'inlet':  { 'rate' : 1e-5},
-    'outlet': { 'prescribed': 1e5 }
-}
-mt = MulticomponentTools(network=pn, num_components=Nc, bc=bc)
-```
-And for a system with 2 components, where very different boundary conditions are applied:
-```python
-bc_0 = {
-    'inlet':  { 'rate' : 1e-5},
-    'outlet': { 'outflow' }
-}
-bc_1 = {
-    'inlet':  { 'prescribed' : 1},
-    'outlet': { 'value': 1 }
-}
-bc = [bc_0, bc_1]
-mt = MulticomponentTools(network=pn, num_components=Nc, bc=bc)
-```
 
 ## Numerical Differentiation
 As part of the toolset or as standalone functionality, we can obtain an approximate Jacobian by numerically differentiating the defect. For a defect $`G(x)`$, we can express the numerical differentiation as:
