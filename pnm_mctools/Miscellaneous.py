@@ -1,5 +1,5 @@
 import numpy as np
-from ToolSet import _compute_flux_matrix, MulticomponentTools
+from .ToolSet import _compute_flux_matrix, MulticomponentTools
 import Operators as ops
 
 

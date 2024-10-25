@@ -1,7 +1,7 @@
 from typing import Tuple, Any, Set
 import scipy
 import numpy as np
-import ToolSet as ts
+from . import ToolSet as ts
 
 
 def unpack_info(network, bc) -> Tuple[Any, int, int, int, Any]:
