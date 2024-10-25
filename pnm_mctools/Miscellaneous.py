@@ -1,6 +1,6 @@
 import numpy as np
 from .ToolSet import _compute_flux_matrix, MulticomponentTools
-import Operators as ops
+from . import Operators as ops
 
 
 def compute_rates(mc: MulticomponentTools, *args):
