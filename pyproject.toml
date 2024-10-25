@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pnm_mctools"
-version = "0.3.2s"
+version = "0.4.0"
 dependencies = [
     "numpy",
     "openpnm",

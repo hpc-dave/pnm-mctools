@@ -6,10 +6,12 @@ sys.path.append(str(parent_dir))
 import openpnm as op                                      # noqa: E402
 import scipy.linalg                                       # noqa: E402
 import scipy.sparse                                       # noqa: E402
-import testing.const_spheres_and_cylinders as geo_model   # noqa: E402
+import models.const_spheres_and_cylinders as geo_model    # noqa: E402
 import numpy as np                                        # noqa: E402
 import scipy                                              # noqa: E402
 from ToolSet import MulticomponentTools                   # noqa: E402
+import Operators as ops                                   # noqa: E402
+import Interpolation as ip                                # noqa: E402
 
 
 def run(output: bool = True):
@@ -56,10 +58,10 @@ def run(output: bool = True):
     fluxes[:, 1] = v[1]
 
     # construct multiple upwind matrices (directed networks)
-    c_up_float = mt._construct_upwind(fluxes=v[0])
-    c_up_float_list = mt._construct_upwind(fluxes=v)
-    c_up_array_single = mt._construct_upwind(fluxes=fluxes[:, 0])
-    c_up_arrays_mult = mt.get_upwind_matrix(fluxes=fluxes)
+    c_up_float = ip.upwind(network=mt, fluxes=v[0])
+    c_up_float_list = ip.upwind(network=mt, fluxes=v)
+    c_up_array_single = ip.upwind(network=mt, fluxes=fluxes[:, 0])
+    c_up_arrays_mult = ip.upwind(network=mt, fluxes=fluxes)
 
     # check the implementations
     if scipy.sparse.find(c_up_float_list - c_up_arrays_mult)[0].size > 0:
@@ -69,10 +71,10 @@ def run(output: bool = True):
         raise ('matrices are inconsistent, check implementation')
 
     c_up = c_up_arrays_mult
-    div = mt.get_divergence(weights=A_flux)
-    ddt = mt.get_ddt(dt=dt)
+    div = ops.sum(network=mt)
+    ddt = ops.ddt(network=mt, dt=dt)
 
-    J = ddt + div(fluxes, c_up)
+    J = ddt + div(A_flux, fluxes, c_up)
 
     mass_init = np.sum(x)
     peakpos_init = (np.argmax(c[:, 0]), np.argmax(c[:, 1]))

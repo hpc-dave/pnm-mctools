@@ -5,9 +5,12 @@ sys.path.append(str(parent_dir))
 
 import openpnm as op                                       # noqa: E402
 import scipy, scipy.linalg, scipy.sparse                   # noqa: E401, E402
-import testing.const_spheres_and_cylinders as geo_model    # noqa: E402
+import models.const_spheres_and_cylinders as geo_model     # noqa: E402
 import numpy as np                                         # noqa: E402
 from ToolSet import MulticomponentTools                    # noqa: E402
+import Operators as ops                                    # noqa: E402
+import Interpolation as ip                                 # noqa: E402
+import BoundaryConditions as bc                            # noqa: E402
 
 
 def run(output: bool = True):
@@ -21,7 +24,6 @@ def run(output: bool = True):
     network = op.network.Cubic([Nx, Ny, Nz], spacing=spacing)
 
     # add geometry
-
     geo = geo_model.spheres_and_cylinders
     network.add_model_collection(geo, domain='all')
     network.regenerate_models()
@@ -29,8 +31,8 @@ def run(output: bool = True):
     c = np.zeros((network.Np, Nc))
 
     mt = MulticomponentTools(network=network, num_components=Nc)
-    mt.set_bc(id=0, label='left', bc={'value': 1.})
-    mt.set_bc(id=1, label='right', bc={'value': 1.})
+    bc.set(mt, id=0, label='left', bc={'value': 1.})
+    bc.set(mt, id=1, label='right', bc={'value': 1.})
 
     x = np.ndarray.flatten(c).reshape((c.size, 1))
     dx = np.zeros_like(x)
@@ -50,30 +52,30 @@ def run(output: bool = True):
     fluxes[:, 0] = v[0]
     fluxes[:, 1] = v[1]
 
-    c_up = mt.get_upwind_matrix(fluxes=fluxes)
-    div = mt.get_divergence(weights=A_flux)
-    ddt = mt.get_ddt(dt=dt)
+    c_up = ip.upwind(mt, fluxes=fluxes)
+    sum = ops.sum(mt)
+    ddt = ops.ddt(mt, dt=dt)
 
-    J = ddt + div(fluxes, c_up)
-    J = mt.apply_bc(A=J, x=x)
+    J = ddt + sum(A_flux, fluxes, c_up)
+    J = bc.apply(mt, A=J, x=x)
 
     success = True
     for n in range(len(tsteps)):
         x_old = x.copy()
         if n == 100:
             # update BC
-            mt.set_bc(id=0, label='left', bc={'value': 0.})
-            mt.set_bc(id=1, label='right', bc={'value': 0.})
+            bc.set(mt, id=0, label='left', bc={'value': 0.})
+            bc.set(mt, id=1, label='right', bc={'value': 0.})
             # no need to update the matrix
 
         G = J * x - ddt * x_old
-        G = mt.apply_bc(b=G, x=x, type='Defect')
+        G = bc.apply(mt, b=G, x=x, type='Defect')
         for i in range(max_iter):
             last_iter = i
             dx[:] = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
             x = x + dx
             G = J * x - ddt * x_old
-            G = mt.apply_bc(b=G, x=x, type='Defect')
+            G = bc.apply(mt, b=G, x=x, type='Defect')
             G_norm = np.linalg.norm(np.abs(G), ord=2)
             if G_norm < tol:
                 break
@@ -89,6 +91,7 @@ def run(output: bool = True):
         time += dt
 
     return success
+
 
 if __name__ == "__main__":
     success = run()

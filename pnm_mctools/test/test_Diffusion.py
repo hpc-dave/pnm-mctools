@@ -6,11 +6,13 @@ sys.path.append(str(parent_dir))
 import openpnm as op                                      # noqa: E402
 import scipy.linalg                                       # noqa: E402
 import scipy.sparse                                       # noqa: E402
-import testing.const_spheres_and_cylinders as geo_model   # noqa: E402
+import models.const_spheres_and_cylinders as geo_model    # noqa: E402
 import numpy as np                                        # noqa: E402
 import scipy                                              # noqa: E402
 import math                                               # noqa: E402
 from ToolSet import MulticomponentTools                   # noqa: E402
+import Operators as ops                                   # noqa: E402
+import BoundaryConditions as bc                           # noqa: E402
 
 
 def run(output: bool = True):
@@ -29,14 +31,10 @@ def run(output: bool = True):
     network.regenerate_models()
 
     c = np.zeros((network.Np, Nc))
-    bc_0 = {}
-    bc_0['left'] = {'prescribed': 1.}
-    bc_1 = {}
-    bc_1['right'] = {'prescribed': 1.}
 
-    bc = [bc_0, bc_1]
-
-    mt = MulticomponentTools(network=network, num_components=Nc, bc=bc)
+    mt = MulticomponentTools(network=network, num_components=Nc)
+    bc.set(mt=mt, id=0, label='left', bc={'prescribed': 1.})
+    bc.set(mt=mt, id=1, label='right', bc={'prescribed': 1.})
 
     x = np.ndarray.flatten(c).reshape((c.size, 1))
     dx = np.zeros_like(x)
@@ -52,12 +50,12 @@ def run(output: bool = True):
     # that the flux act on
     A_flux = np.zeros((network.Nt, 1), dtype=float) + network['pore.volume'][0]/spacing
 
-    grad = mt.get_gradient_matrix()
-    div = mt.get_divergence(weights=A_flux)
-    ddt = mt.get_ddt(dt=dt)
+    grad = ops.gradient(mt)
+    div = ops.sum(mt)
+    ddt = ops.ddt(mt, dt=dt)
 
     D = np.ones((network.Nt, Nc), dtype=float)
-    J = ddt - div(D, grad)
+    J = ddt - div(A_flux, D, grad)
 
     def AnalyticalSolution(t, zeta):
         s_inf = 1
@@ -72,20 +70,20 @@ def run(output: bool = True):
     zeta = zeta / (zeta[-1]+0.5*spacing)
     ana_sol = np.zeros_like(c)
 
-    J = mt.apply_bc(A=J, type='Jacobian')
+    J = bc.apply(network=mt, A=J, type='Jacobian')
     success = True
     for t in tsteps:
         x_old = x.copy()
         pos += 1
 
         G = J * x - ddt * x_old
-        G = mt.apply_bc(x=x, b=G, type='Defect')
+        G = bc.apply(network=mt, x=x, b=G, type='Defect')
         for i in range(max_iter):
             last_iter = i
             dx[:] = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
             x = x + dx
             G = J * x - ddt * x_old
-            G = mt.apply_bc(x=x, b=G, type='Defect')
+            G = bc.apply(network=mt, x=x, b=G, type='Defect')
             G_norm = np.linalg.norm(np.abs(G), ord=2)
             if G_norm < tol:
                 break
