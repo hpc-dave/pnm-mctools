@@ -306,7 +306,7 @@ def gradient(network,
     elif isinstance(conduit_length, np.ndarray):
         if conduit_length.size != Nt:
             raise ValueError('The size of the conduit_length argument is incompatible with the number of throats!'
-                             + f' Expected {network.Nt} entries, but received {conduit_length.size}')
+                             + f' Expected {net.Nt} entries, but received {conduit_length.size}')
         dist = conduit_length.reshape((-1, 1))
 
     weights = 1./dist
@@ -373,6 +373,5 @@ def delta(network,
 
     conns = net['throat.conns']
     weights = np.ones_like(conns[:, 0], dtype=float)
-    weights = np.append(weights, -weights)
 
     return gradient(network=network, include=include, exclude=exclude, Nc=Nc, conduit_length=weights)

@@ -5,7 +5,8 @@ from . import Operators as ops
 
 
 def upwind(network,
-           fluxes,
+           fluxes=None,
+           rates=None,
            include: int | List[int] | None = None,
            exclude: int | List[int] | None = None,
            Nc: int | None = None) -> scipy.sparse.csr_matrix:
@@ -15,36 +16,45 @@ def upwind(network,
 
     Parameters
     ----------
-    fluxes: any
-        fluxes which determine the upwind direction, see below for more details
-    include: list
-        a list of integers to specify for which components the matrix should be constructed,
-        for components which are not listed here, the rows will be 0. If 'None' is provided,
-        all components will be selected
-    exclude: list
-        Inverse of include, without effect if include is specified
-    Nc: int|None
-        number of components in the system
+        network
+            An instance with similar signatures as a MulticomponentTools or OpenPNM network object
+            In the case of an OpenPNM network, the argument Nc has to be specified
+        fluxes: any
+            fluxes which determine the upwind direction, see below for more details
+        rates: any
+            alias for fluxes
+        include: list
+            a list of integers to specify for which components the matrix should be constructed,
+            for components which are not listed here, the rows will be 0. If 'None' is provided,
+            all components will be selected
+        exclude: list
+            Inverse of include, without effect if include is specified
+        Nc: int|None
+            number of components in the system
     Returns
     -------
-    A [Nt, Np] sized CSR-matrix representing a directed network
+        A [Nt, Np] sized CSR-matrix representing a directed network
 
     Notes
     -----
-    The direction of the fluxes is directly linked with the storage of the connections
-    inside the OpenPNM network. For more details, refer to the 'create_incidence_matrix' method
-    of the network module.
-    The resulting matrix IS NOT SCALED with the fluxes and can also be used for determining
-    upwind interpolated values.
-    The provided fluxes can either be:
-        int/float - single value
-        list/numpy.ndarray - with size num_components applies the values to each component separately
-        numpy.ndarray - with size Nt applies the fluxes to each component by throat: great for convection
-        numpy.ndarray - with size Nt * num_components is the most specific application for complex
-                        multicomponent coupling, where fluxes can be opposed to each other within
-                        the same throat
+        The direction of the fluxes is directly linked with the storage of the connections
+        inside the OpenPNM network. For more details, refer to the 'create_incidence_matrix' method
+        of the network module.
+        The resulting matrix IS NOT SCALED with the fluxes and can also be used for determining
+        upwind interpolated values.
+        The provided fluxes can either be:
+            int/float - single value
+            list/numpy.ndarray - with size num_components applies the values to each component separately
+            numpy.ndarray - with size Nt applies the fluxes to each component by throat: great for convection
+            numpy.ndarray - with size Nt * num_components is the most specific application for complex
+                            multicomponent coupling, where fluxes can be opposed to each other within
+                            the same throat
     """
     net, Np, Nt, Nc, include = ops.unpack_network(network=network, Nc=Nc, include=include, exclude=exclude)
+    if fluxes is None:
+        fluxes = rates
+    if fluxes is None:
+        raise ValueError('Either one of the arguments `fluxes` or `rates` has to be specified')
 
     # Note, that this function can be shortened significantly. However, I decided to leave it this way, since
     # the most general option is quite difficult to understand on the first glance and having this longer version
@@ -134,15 +144,16 @@ def central_difference(network,
 
     Parameters
     ----------
-    include: list
-        a list of integers to specify for which components the matrix should be constructed,
-        for components which are not listed here, the rows will be 0. If 'None' is provided,
-        all components will be selected
-    exclude: list
-        Inverse of include, without effect if include is specified
+
+        include: list
+            a list of integers to specify for which components the matrix should be constructed,
+            for components which are not listed here, the rows will be 0. If 'None' is provided,
+            all components will be selected
+        exclude: list
+            Inverse of include, without effect if include is specified
     Returns
     -------
-    A [Nt, Np] sized CSR-matrix representing a directed network
+        A [Nt, Np] sized CSR-matrix representing a directed network
 
     """
     net, Np, Nt, Nc, include = ops.unpack_network(network=network, Nc=Nc, include=include, exclude=exclude)
