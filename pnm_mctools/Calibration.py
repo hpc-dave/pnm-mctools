@@ -1,7 +1,9 @@
 import math
 import numpy as np
+import ToolSet as ts
 
-def _default_mapping(type:str) -> list:
+
+def _default_mapping(type: str) -> list:
     r"""
     Provides a default mapping list for the calibration
 
@@ -61,10 +63,10 @@ def PrepareCalibratedValues(network, type: str = None, map_keys: list = None) ->
         network[v[0]] = network[v[1]].copy() * v[2]
 
 
-def hydraulic_conductance(conn, pore_radii, throat_radii, conduit_length,
-                          throat_density, throat_viscosity, rate,
-                          gamma: float, C_0: float, E_0: float,
-                          F: float, m: float, n: float) -> np.ndarray:
+def hydraulic_conductance_fathiganjehlou(conn, pore_radii, throat_radii, conduit_length,
+                                         throat_density, throat_viscosity, rate,
+                                         gamma: float, C_0: float, E_0: float,
+                                         F: float, m: float, n: float) -> np.ndarray:
     r"""
     Computes the hydraulic conductance according to Eghbalmanesh and Fathiganjehlou (10.1016/j.ces.2023.119396)
 
@@ -134,7 +136,7 @@ def hydraulic_conductance(conn, pore_radii, throat_radii, conduit_length,
     # compute coefficients
     r_4 = r_ij**4
     Re_ij = 2 * rho * _rate/(math.pi * mu * r_ij)
-    A_ij = 8 * mu  * l_c / (math.pi * r_4)
+    A_ij = 8 * mu * l_c / (math.pi * r_4)
     C_ij = rho/(2 * math.pi**2 * r_4) * _rate * ((C_0/Re_ij)**n + 1./(2**n) * (1 - (r_ij/r_i)**2)**n)
     E_ij = rho/(2 * math.pi**2 * r_4) * _rate * ((E_0/Re_ij)**m + (1 - (r_ij/r_j)**2)**(2*m))
     G_ij = gamma * rho * _rate / (2 * math.pi**2) * (1/r_i**4 - 1/r_j**4)
@@ -149,16 +151,26 @@ def hydraulic_conductance(conn, pore_radii, throat_radii, conduit_length,
     return (1./(A_ij + C_ij + E_ij - G_ij)).reshape((-1, 1))
 
 
-class CalibratedConductance:
+class ConductanceFathiganjehlou:
+    r"""
+    Stores values for applying calibrated conductance according to the work of Ali Fathiganjehlou
+    For more information refer to:
+    https://doi.org/10.1016/j.ces.2023.118626
+    and
+    https://doi.org/10.1016/j.ces.2023.119396
+    """
     def __init__(self,
                  network=None,
-                 C_0:float = 26., E_0: float = 27., gamma = 1.,
+                 C_0: float = 26., E_0: float = 27., gamma: float = 1.,
                  F_hydro: float = 1., m: float = 1., n: float = 1.,
-                 throat_conn = 'throat.conns',
-                 throat_radii = 'throat.calibration_radius',
-                 pore_radii = 'pore.calibration_radius',
-                 throat_length = 'throat.calibration_length'):
-        self.network = network
+                 throat_conn='throat.conns',
+                 throat_radii='throat.calibration_radius',
+                 pore_radii='pore.calibration_radius',
+                 throat_length='throat.calibration_length'):
+        if isinstance(network, ts.MulticomponentTools):
+            self.network = network.get_network()
+        else:
+            self.network = network
         self.C_0 = C_0
         self.E_0 = E_0
         self.F_hydro = F_hydro
@@ -192,12 +204,16 @@ class CalibratedConductance:
         Returns the parameters of the PrepareCalibratedValues function defined above, currently None
         """
         if network is not None:
-            self.network = network
+            if isinstance(network, ts.MulticomponentTools):
+                self.network = network.get_network()
+            else:
+                self.network = network
         if self.network is None:
             raise ValueError('Cannot prepare network, None was provided!')
         return PrepareCalibratedValues(network=network, type=type, map_keys=map_keys)
 
-    def Hydraulic(self, viscosity, density, rate = None, throats: str|list[str]|np.ndarray = 'all', **kwargs) -> np.ndarray:
+    def Hydraulic(self, viscosity, density,
+                  rate=None, throats: str | list[str] | np.ndarray = 'all', **kwargs) -> np.ndarray:
         r"""
         Computes the hydraulic conductance according to Eghbalmanesh and Fathiganjehlou (10.1016/j.ces.2023.119396)
 
@@ -238,7 +254,7 @@ class CalibratedConductance:
             throats_l = throats
 
         if throats_l.dtype != int:
-            raise TypeError(f'The throats have to be provided as integer values! Found following type: {type(throats[0])}')
+            raise TypeError(f'The throats have to be provided as integer values! Found following type: {type(throats[0])}')    # noqa: E501
 
         Nt = self.network.num_throats()
         Nt_l = throats_l.size
@@ -246,25 +262,25 @@ class CalibratedConductance:
         mu = viscosity if isinstance(viscosity, np.ndarray) else np.full((Nt, 1), fill_value=viscosity, dtype=float)
         rho = density if isinstance(density, np.ndarray) else np.full((Nt, 1), fill_value=density, dtype=float)
         if mu.size != Nt:
-            raise ValueError(f'viscosity array is incompatible with number of throats! Provided array has shape: {mu.shape}')
+            raise ValueError(f'viscosity array is incompatible with number of throats! Provided array has shape: {mu.shape}')   # noqa: E501
         if rho.size != Nt:
-            raise ValueError(f'density array is incompatible with number of throats! Provided array has shape: {rho.shape}')
+            raise ValueError(f'density array is incompatible with number of throats! Provided array has shape: {rho.shape}')   # noqa: E501
         if rate is not None and rate.size != Nt:
-            raise ValueError(f'rate array is incompatible with number of throats! Provided array has shape: {rate.shape}')
+            raise ValueError(f'rate array is incompatible with number of throats! Provided array has shape: {rate.shape}')   # noqa: E501
 
-        g = hydraulic_conductance(conn=self.network[self.l_tconn],
-                                  pore_radii=self.network[self.l_pradii],
-                                  throat_radii=self.network[self.l_tradii],
-                                  conduit_length=self.network[self.l_tlength],
-                                  throat_viscosity=mu,
-                                  throat_density=rho,
-                                  rate=rate,
-                                  gamma=self.gamma,
-                                  C_0=self.C_0,
-                                  E_0=self.E_0,
-                                  F=self.F_hydro,
-                                  m=self.m,
-                                  n=self.n)
+        g = hydraulic_conductance_fathiganjehlou(conn=self.network[self.l_tconn],
+                                                 pore_radii=self.network[self.l_pradii],
+                                                 throat_radii=self.network[self.l_tradii],
+                                                 conduit_length=self.network[self.l_tlength],
+                                                 throat_viscosity=mu,
+                                                 throat_density=rho,
+                                                 rate=rate,
+                                                 gamma=self.gamma,
+                                                 C_0=self.C_0,
+                                                 E_0=self.E_0,
+                                                 F=self.F_hydro,
+                                                 m=self.m,
+                                                 n=self.n)
 
         if Nt_l < Nt:
             g = g[throats_l]

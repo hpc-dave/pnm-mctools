@@ -122,7 +122,7 @@ def _apply_numerical_differentiation_full(c: np.ndarray,
     try:
         J = np.zeros((c.size, c.size), dtype=float)
     except MemoryError:
-        print('Numerical differentiation with the full matrix exceeds locally available memory, invoking low memory variant instead!')
+        print('Numerical differentiation with the full matrix exceeds locally available memory, invoking low memory variant instead!')     # noqa: E501
         return _apply_numerical_differentiation_lowmem(c=c, defect_func=defect_func, dc=dc)
 
     single_param = len(signature(defect_func)._parameters) == 1
@@ -214,7 +214,7 @@ def _apply_numerical_differentiation_locally_constrained(c: np.ndarray,
 
     # to accomodate that we want to exclude certain values, even if they are dependent
     # on the specified excluded component (e.g. because we are lazy and didn't take the
-    # explicit component out of the defect function), the row based values need to be 
+    # explicit component out of the defect function), the row based values need to be
     # removed/set to 0
     if len(exclude) > 0:
         values[:, exclude, :] = 0.

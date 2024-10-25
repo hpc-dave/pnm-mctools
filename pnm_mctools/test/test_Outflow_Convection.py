@@ -5,9 +5,12 @@ sys.path.append(str(parent_dir))
 
 import openpnm as op                                       # noqa: E402
 import scipy, scipy.linalg, scipy.sparse                   # noqa: E401, E402
-import testing.const_spheres_and_cylinders as geo_model    # noqa: E402
+import models.const_spheres_and_cylinders as geo_model    # noqa: E402
 import numpy as np                                         # noqa: E402
 from ToolSet import MulticomponentTools                    # noqa: E402
+import Operators as ops                                    # noqa: E402
+import Interpolation as ip                                 # noqa: E402
+import BoundaryConditions as bc                            # noqa: E402
 
 
 def run(output: bool = True):
@@ -27,14 +30,12 @@ def run(output: bool = True):
     network.regenerate_models()
 
     c = np.zeros((network.Np, Nc))
-    bc_0, bc_1 = {}, {}
-    bc_0['left'] = {'value': 1}
-    bc_0['right'] = {'outflow': None}
-    bc_1['right'] = {'value': 1}
-    bc_1['left'] = {'outflow': None}
-    bc = [bc_0, bc_1]
 
-    mt = MulticomponentTools(network=network, num_components=Nc, bc=bc)
+    mt = MulticomponentTools(network=network, num_components=Nc)
+    bc.set(mt, id=0, label='left', bc={'value': 1})
+    bc.set(mt, id=0, label='right', bc={'outflow'})
+    bc.set(mt, id=1, label='left', bc={'outflow'})
+    bc.set(mt, id=1, label='right', bc={'value': 1})
 
     x = np.ndarray.flatten(c).reshape((c.size, 1))
     dx = np.zeros_like(x)
@@ -57,12 +58,12 @@ def run(output: bool = True):
     fluxes[:, 0] = v[0]
     fluxes[:, 1] = v[1]
 
-    c_up = mt.get_upwind_matrix(fluxes=fluxes)
-    div = mt.get_divergence(weights=A_flux)
-    ddt = mt.get_ddt(dt=dt)
+    c_up = ip.upwind(mt, fluxes=fluxes)
+    sum = ops.sum(mt)
+    ddt = ops.ddt(mt, dt=dt)
 
-    J = ddt + div(fluxes, c_up)
-    J = mt.apply_bc(A=J, x=x)
+    J = ddt + sum(A_flux, fluxes, c_up)
+    J = bc.apply(mt, A=J, x=x)
 
     mass_init = np.sum(c[1:-1, :] * network['pore.volume'][1:-1].reshape(network.Np-2, 1), axis=0)
 
@@ -77,13 +78,13 @@ def run(output: bool = True):
         pos += 1
 
         G = J * x - ddt * x_old
-        G = mt.apply_bc(b=G, x=x, type='Defect')
+        G = bc.apply(mt, b=G, x=x, type='Defect')
         for i in range(max_iter):
             last_iter = i
             dx[:] = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
             x = x + dx
             G = J * x - ddt * x_old
-            G = mt.apply_bc(b=G, x=x, type='Defect')
+            G = bc.apply(mt, b=G, x=x, type='Defect')
             G_norm = np.linalg.norm(np.abs(G), ord=2)
             if G_norm < tol:
                 break
@@ -104,6 +105,7 @@ def run(output: bool = True):
         time += dt
 
     return success
+
 
 if __name__ == "__main__":
     run()

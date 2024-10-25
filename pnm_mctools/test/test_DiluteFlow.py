@@ -5,9 +5,12 @@ sys.path.append(str(parent_dir))
 
 import openpnm as op                                       # noqa: E402
 import scipy, scipy.linalg, scipy.sparse                   # noqa: E401, E402
-import testing.const_spheres_and_cylinders as geo_model    # noqa: E402
+import models.const_spheres_and_cylinders as geo_model     # noqa: E402
 import numpy as np                                         # noqa: E402
 from ToolSet import MulticomponentTools                    # noqa: E402
+import Operators as ops                                    # noqa: E402
+import Interpolation as ip                                 # noqa: E402
+import BoundaryConditions as bc                            # noqa: E402
 
 
 def run(output: bool = True):
@@ -36,11 +39,10 @@ def run(output: bool = True):
     sf.run()
 
     c = np.zeros((network.Np, 1))
-    bc = {}
-    bc['left'] = {'prescribed': 1.}
-    bc['right'] = {'outflow': None}
 
-    mt = MulticomponentTools(network=network, bc=bc)
+    mt = MulticomponentTools(network=network)
+    bc.set(mt, label='left', bc=1.)
+    bc.set(mt, label='right', bc={'outflow'})
 
     x = np.ndarray.flatten(c).reshape((c.size, 1))
     dx = np.zeros_like(x)
@@ -56,29 +58,29 @@ def run(output: bool = True):
     # that the flux acts on
     A_flux = np.zeros((network.Nt, 1), dtype=float) + network['pore.volume'][0]/spacing
     fluid_flux = sf.rate(throats=network.throats('all'), mode='single')
-    grad = mt.get_gradient_matrix()
-    c_up = mt.get_upwind_matrix(fluxes=fluid_flux)
-    sum = mt.get_sum()
-    ddt = mt.get_ddt(dt=dt)
+    grad = ops.gradient(mt)
+    c_up = ip.upwind(mt, fluxes=fluid_flux)
+    sum = ops.sum(mt)
+    ddt = ops.ddt(mt, dt=dt)
 
     D = np.full((network.Nt, 1), fill_value=1e-6, dtype=float)
 
     J = ddt - sum(D, A_flux, grad) + sum(fluid_flux, c_up)
 
-    J = mt.apply_bc(A=J)
+    J = bc.apply(mt, A=J)
     success = True
     for t in tsteps:
         x_old = x.copy()
         pos += 1
 
         G = J * x - ddt * x_old
-        G = mt.apply_bc(x=x, b=G, type='Defect')
+        G = bc.apply(mt, x=x, b=G, type='Defect')
         for i in range(max_iter):
             last_iter = i
             dx[:] = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
             x = x + dx
             G = J * x - ddt * x_old
-            G = mt.apply_bc(x=x, b=G, type='Defect')
+            G = bc.apply(mt, x=x, b=G, type='Defect')
             G_norm = np.linalg.norm(np.abs(G), ord=2)
             if G_norm < tol:
                 break
