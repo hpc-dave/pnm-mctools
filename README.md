@@ -187,13 +187,13 @@ J, G = numdiff.conduct_numerical_differentiation(c, defect_func=Defect)
 ```
 Especially for large systems (>5000 rows as a rough indicator), memory limitations may become problematic with the default tool. For this case, you may specify a memory wise optimization, which comes at a slight runtime penalty:
 ```python
-J, G = num_diff.conduct_numerical_differentiation(c, defect_func=Defect, type='low_mem')
+J, G = numdiff.conduct_numerical_differentiation(c, defect_func=Defect, type='low_mem')
 ```
 A special case of optimization you can achieve, if you know that the Jacobian is only dependent on the components and not on the connected pores, e.g. in the case of reaction in the pore:
 ```python
-J, G = num_diff.conduct_numerical_differentiation(c, defect_func=Defect, type='constrained')
+J, G = numdiff.conduct_numerical_differentiation(c, defect_func=Defect, type='constrained')
 # or
-J, G = num_diff.conduct_numerical_differentiation(c, defect_func=Defect, axis=1)
+J, G = numdiff.conduct_numerical_differentiation(c, defect_func=Defect, axis=1)
 ```
 The option `axis=1` exist for compatibility reason with the [pymrm](https://pypi.org/project/pymrm/) package.
 ## Reactions
