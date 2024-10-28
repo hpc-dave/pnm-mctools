@@ -169,31 +169,31 @@ Currently, following types of boundaries are supported:
 A special case is the `outflow` boundary condition. There, we assume that transport from the adjacent pores is strictly directed into the labeled pore. No integration is conducted there and the values there are not conservative. To accomodate dependencies on those pores, e.g. in the case of diffusive contributions, we impose a value on the pore which is computed from a weighted average of the connected pores. **Be careful!** If a inverse flow occurs in this pore, the behavior is undefined!
 
 ## Numerical Differentiation
-As part of the toolset or as standalone functionality, we can obtain an approximate Jacobian by numerically differentiating the defect. For a defect $`G(x)`$, we can express the numerical differentiation as:
+As part of the toolset, we can obtain an approximate Jacobian by numerically differentiating the defect. For a defect $`G(x)`$, we can express the numerical differentiation as:
 ```math
 J = \frac{\partial G}{\partial x} \approx \frac{G(x+\Delta x) - G(x)}{\Delta x}
 ```
 The big advantage here is, that we can avoid the cumbersome derivation of the (non-linear) defect $`G`$. However, this comes with increased runtime-costs. The here provided functionality exploits a few tricks to reduce the runtime penalty. In the simplest case you can call it by:
 ```python
+from pnm_mctools import NumericalDifferentiation as numdiff
 def Defect(c):
     # define a defect function here
     # Note, that may have the same shape as the input array c 
 
-mt = MulticomponentTools(...)
 c = ...      # an array of shape (Np, Nc) with the solution variables
-J, G = mt.NumericalDifferentiation(c, defect_func=Defect)
+J, G = numdiff.conduct_numerical_differentiation(c, defect_func=Defect)
 
 # continue solving the system
 ```
 Especially for large systems (>5000 rows as a rough indicator), memory limitations may become problematic with the default tool. For this case, you may specify a memory wise optimization, which comes at a slight runtime penalty:
 ```python
-J, G = mt.conduct_numerical_differentiation(c, defect_func=Defect, type='low_mem')
+J, G = num_diff.conduct_numerical_differentiation(c, defect_func=Defect, type='low_mem')
 ```
 A special case of optimization you can achieve, if you know that the Jacobian is only dependent on the components and not on the connected pores, e.g. in the case of reaction in the pore:
 ```python
-J, G = mt.conduct_numerical_differentiation(c, defect_func=Defect, type='constrained')
+J, G = num_diff.conduct_numerical_differentiation(c, defect_func=Defect, type='constrained')
 # or
-J, G = mt.conduct_numerical_differentiation(c, defect_func=Defect, axis=1)
+J, G = num_diff.conduct_numerical_differentiation(c, defect_func=Defect, axis=1)
 ```
 The option `axis=1` exist for compatibility reason with the [pymrm](https://pypi.org/project/pymrm/) package.
 ## Reactions
