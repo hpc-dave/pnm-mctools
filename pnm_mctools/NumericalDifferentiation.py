@@ -227,7 +227,7 @@ def _apply_numerical_differentiation_locally_constrained(c: np.ndarray,
 
 
 def conduct_numerical_differentiation(c: np.ndarray, defect_func: Callable, dc: float = 1e-6, type: str = 'full',
-                                      exclude: int | list[int] = None, axis: int = None):
+                                      exclude: int | list[int] | None = None, axis: int = None):
     r"""
     Conducts numerical differentiation
 
@@ -244,8 +244,10 @@ def conduct_numerical_differentiation(c: np.ndarray, defect_func: Callable, dc: 
         specifier for optimization of the process, currently supported arguments are
         'full' and 'low_mem', for the allocation of an intermediated dense matrix
         and sparse columns respectively.
-    exclude
+    exclude: int|list[int]|None
         component IDs for which the numerical differentiation shall not be conducted
+    axis: int
+        alternative to the `type` label for consistency with the mrm package
 
     Returns
     -------
