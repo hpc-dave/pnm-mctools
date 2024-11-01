@@ -243,7 +243,8 @@ def conduct_numerical_differentiation(c: np.ndarray, defect_func: Callable, dc: 
     type: str
         specifier for optimization of the process, currently supported arguments are
         'full' and 'low_mem', for the allocation of an intermediated dense matrix
-        and sparse columns respectively.
+        and sparse columns respectively. The option 'constrained' can be applied, if
+        the changes in defect are constrained to each pore, e.g. in the case of reaction
     exclude: int|list[int]|None
         component IDs for which the numerical differentiation shall not be conducted
     axis: int
