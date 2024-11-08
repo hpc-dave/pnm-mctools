@@ -281,7 +281,7 @@ def single_linear(c, c_old,
     # so later we can use both components or simply add them up to get the defect
     b[:, c_id, 0] = K_func(c[:, c_id]).reshape((Np, -1)) * c[:, c_id]
     b[:, c_id, 1] = -K_func(c_old[:, c_id]).reshape((Np, -1)) * c_old[:, c_id]
-    b[:, c_id, :] = b[:, c_id, :].multiply(sp_surf * V_pore / dt)
+    b[:, c_id, :] = np.multiply(b[:, c_id, :], np.expand_dims(sp_surf * V_pore / dt, axis=2))
 
     if (stype == 'jacobian') or (stype == 'direct'):
         A = scipy.sparse.spdiags(data=[b[:, :, 0].ravel()], diags=[0], format='csr')
@@ -372,7 +372,7 @@ def multi_component(c, c_old,
     A, b = None, None
     _, _, Nc, V_pore, sp_surf = _extract_and_sort_parameters(c=c, network=network, Vp=Vp, a_v=a_v)
 
-    alpha = V_pore.multiply(sp_surf)/dt
+    alpha = np.multiply(V_pore, sp_surf/dt)
 
     if component_id is None:
         c_id = range(Nc)
@@ -384,7 +384,7 @@ def multi_component(c, c_old,
     def Defect(c):
         G = np.zeros_like(c)
         G[:, c_id] = theta_func(c[:, c_id]) - theta_old
-        G.multiply(alpha)
+        G = np.multiply(G, alpha)
         return G.reshape((-1, 1))
 
     if stype == 'jacobian':

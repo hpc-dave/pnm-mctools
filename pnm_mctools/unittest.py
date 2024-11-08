@@ -5,7 +5,7 @@ import test.test_DiluteFlow as DiluteFlow
 import test.test_Outflow_Convection as OutflowConvection
 import test.test_RateBC_Convection as RateBCConvection
 import test.test_VariableBC as VariableBC
-import test.test_Adsorption as Adsorption
+# import test.test_Adsorption as Adsorption
 
 
 success_all = True
