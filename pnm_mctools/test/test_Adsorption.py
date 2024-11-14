@@ -10,16 +10,17 @@ import numpy as np                                          # noqa: E402
 import scipy                                                # noqa: E402
 from ToolSet import MulticomponentTools                     # noqa: E402
 import Operators as ops                                     # noqa: E402
-from Adsorption import AdsorptionSingleComponent            # noqa: E402
-from Adsorption import Linear, Langmuir, Freundlich         # noqa: E402
 import Adsorption as ads                                    # noqa: E402
 
 
 def run(output: bool = True):
     success = True
-    success &= run_single_linear(output)
-    if not success:
+    if not run_single_linear(output):
+        success = False
         print('Linear failed')
+    if not run_single_Langmuir(output):
+        success = False
+        print('Langmuir failed')
     # success &= run_Linear(output)
     # if not success:
     #     print('Linear failed')
@@ -129,12 +130,18 @@ def run_single_linear(output: bool = True):
     return success
 
 
-def run_Linear(output: bool = True):
+def run_single_Langmuir(output: bool = True):
     Nx = 10
     Ny = 1
     Nz = 1
-    Nc = 3
+    Nc = 2
     spacing = 1./Nx
+    id_ads = 0
+    Kads = 1.
+    a_v = 1.
+    ymax_value = 1.
+    source = 1.
+    dt = 1.
 
     # get network
     network = op.network.Cubic([Nx, Ny, Nz], spacing=spacing)
@@ -143,235 +150,316 @@ def run_Linear(output: bool = True):
     network.add_model_collection(op.models.collections.geometry.spheres_and_cylinders, domain='all')
     network.regenerate_models()
 
-    # adsorption data
-    ads = 0
-    dil = 1
+    ymax = np.full((network.Np, 1), fill_value=ymax_value, dtype=float)
+    a_V = np.full((network.Np, 1), fill_value=a_v, dtype=float)
 
-    def y_f(c_f, c_ads):
-        return Linear(c_f, K=0.5)
-
-    a_V = np.full((network.Np, 1), fill_value=5., dtype=float)
+    def theta_Langmuir(c_f):
+        return ads.Langmuir(c_f.reshape((-1, 1)), K=Kads, y_max=ymax)
 
     c = np.zeros((network.Np, Nc))
-    c[:, dil] = np.linspace(0.1, 1., c.shape[0])
+    c[:, id_ads] = np.linspace(0.01, 10., c.shape[0])
     mt = MulticomponentTools(network=network, num_components=Nc)
 
     x = c.reshape((-1, 1))
     dx = np.zeros_like(x)
 
     tol = 1e-12
-    max_iter = 10
-    ddt = mt.get_ddt(dt=1.)
+    max_iter = 100
+    ddt = ops.ddt(mt, dt=dt)
+
+    G_source = np.zeros_like(c)
+    G_source[:, id_ads] = -source * network['pore.volume'].reshape((-1))
+    G_source = G_source.reshape((-1, 1))
 
     success = True
     x_old = x.copy()
 
-    def ComputeSystem(x, c_l, type):
-        J_ads, G_ads = AdsorptionSingleComponent(c=c_l,
-                                                 dilute=dil, adsorbed=ads,
-                                                 Vp=network['pore.volume'], a_v=a_V,
-                                                 y_func=y_f, exclude=2,
-                                                 type=type, dc=1e-6)
-        G = ddt * (x - x_old) + G_ads
-        if type == 'Defect':
+    def ComputeSystem(x, c_l, c_old, stype):
+        J_ads, G_ads = ads.multi_component(c=c_l, c_old=c_old,
+                                           component_id=id_ads,
+                                           Vp=network['pore.volume'], a_v=a_V,
+                                           theta_func=theta_Langmuir,
+                                           stype=stype, dc=1e-6, dt=dt)
+        G = ddt * (x - x_old) + G_ads + G_source
+        if stype.lower() == 'defect':
             return G
         J = ddt + J_ads
         return J, G
 
-    J, G = ComputeSystem(x, c, 'Jacobian')
+    J, G = ComputeSystem(x, c, c, 'Jacobian')
 
+    theta_init = theta_Langmuir(c[:, id_ads])
     m_0 = c.copy()
-    m_0[:, dil] *= network['pore.volume']
-    m_0[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
+    m_0[:, id_ads] += theta_init.reshape((-1)) * a_V.reshape((-1))
+    m_0 *= network['pore.volume'].reshape((-1, 1))
     for i in range(max_iter):
         last_iter = i
         dx = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
         x = x + dx
         c = x.reshape(c.shape)
-        G = ComputeSystem(x, c, 'Defect')
+        J, G = ComputeSystem(x, c, x_old.reshape((-1, Nc)), 'Jacobian')
         G_norm = np.linalg.norm(np.abs(G), ord=2)
         if G_norm < tol:
             break
     if last_iter == max_iter - 1:
         print(f'WARNING: the maximum iterations ({max_iter}) were reached!')
 
+    theta_final = theta_Langmuir(c[:, id_ads]).reshape((-1, 1))
     m = c.copy()
-    m[:, dil] *= network['pore.volume']
-    m[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
-    err = np.sum(m - m_0)/np.sum(m_0)
+    m[:, id_ads] += theta_final.reshape((-1)) * a_V.reshape((-1))
+    m *= network['pore.volume'].reshape((-1, 1))
+    m_s = np.zeros_like(c)
+    m_s[:, id_ads] = source * network['pore.volume'].reshape((-1))
+    err = np.sum(m - (m_0 + m_s))/np.sum(m_0)
     success &= err < 1e-8
-
-    theta_final = y_f(c[:, dil], c[:, ads])
-    c_ads = theta_final
-    err_ads = np.max(np.abs((c_ads-c[:, ads])/c_ads))
-    success &= err_ads < 1e-5
     if output:
         print(f'{last_iter + 1} it [{G_norm:1.2e}]\
-            mass-loss [{err:1.2e}] isotherm-error [{err_ads:1.2e}]')
+            mass-loss [{err:1.2e}]')
     return success
 
+# def run_Linear(output: bool = True):
+#     Nx = 10
+#     Ny = 1
+#     Nz = 1
+#     Nc = 3
+#     spacing = 1./Nx
 
-def run_Langmuir(output: bool = True):
-    Nx = 10
-    Ny = 1
-    Nz = 1
-    Nc = 3
-    spacing = 1./Nx
+#     # get network
+#     network = op.network.Cubic([Nx, Ny, Nz], spacing=spacing)
 
-    # get network
-    network = op.network.Cubic([Nx, Ny, Nz], spacing=spacing)
+#     # add geometry
+#     network.add_model_collection(op.models.collections.geometry.spheres_and_cylinders, domain='all')
+#     network.regenerate_models()
 
-    # add geometry
-    network.add_model_collection(op.models.collections.geometry.spheres_and_cylinders, domain='all')
-    network.regenerate_models()
+#     # adsorption data
+#     ads = 0
+#     dil = 1
 
-    # adsorption data
-    ads = 0
-    dil = 1
+#     def y_f(c_f, c_ads):
+#         return Linear(c_f, K=0.5)
 
-    ymax = np.full((network.Np, 1), fill_value=95., dtype=float)
-    a_V = np.full((network.Np, 1), fill_value=10., dtype=float)
+#     a_V = np.full((network.Np, 1), fill_value=5., dtype=float)
 
-    def y_f(c_f, c_ads):
-        return Langmuir(c_f.reshape((-1, 1)), K=0.1, y_max=ymax)
+#     c = np.zeros((network.Np, Nc))
+#     c[:, dil] = np.linspace(0.1, 1., c.shape[0])
+#     mt = MulticomponentTools(network=network, num_components=Nc)
 
-    c = np.zeros((network.Np, Nc))
-    c[:, dil] = np.linspace(0.1, 1., c.shape[0])
-    mt = MulticomponentTools(network=network, num_components=Nc)
+#     x = c.reshape((-1, 1))
+#     dx = np.zeros_like(x)
 
-    x = c.reshape((-1, 1))
-    dx = np.zeros_like(x)
+#     tol = 1e-12
+#     max_iter = 10
+#     ddt = mt.get_ddt(dt=1.)
 
-    tol = 1e-12
-    max_iter = 100
-    ddt = mt.get_ddt(dt=1.)
+#     success = True
+#     x_old = x.copy()
 
-    success = True
-    x_old = x.copy()
+#     def ComputeSystem(x, c_l, type):
+#         J_ads, G_ads = AdsorptionSingleComponent(c=c_l,
+#                                                  dilute=dil, adsorbed=ads,
+#                                                  Vp=network['pore.volume'], a_v=a_V,
+#                                                  y_func=y_f, exclude=2,
+#                                                  type=type, dc=1e-6)
+#         G = ddt * (x - x_old) + G_ads
+#         if type == 'Defect':
+#             return G
+#         J = ddt + J_ads
+#         return J, G
 
-    def ComputeSystem(x, c_l, type):
-        J_ads, G_ads = AdsorptionSingleComponent(c=c_l,
-                                                 dilute=dil, adsorbed=ads,
-                                                 Vp=network['pore.volume'], a_v=a_V,
-                                                 y_func=y_f, exclude=2,
-                                                 type=type, dc=1e-6)
-        G = ddt * (x - x_old) + G_ads
-        if type == 'Defect':
-            return G
-        J = ddt + J_ads
-        return J, G
+#     J, G = ComputeSystem(x, c, 'Jacobian')
 
-    J, G = ComputeSystem(x, c, 'Jacobian')
+#     m_0 = c.copy()
+#     m_0[:, dil] *= network['pore.volume']
+#     m_0[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
+#     for i in range(max_iter):
+#         last_iter = i
+#         dx = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
+#         x = x + dx
+#         c = x.reshape(c.shape)
+#         G = ComputeSystem(x, c, 'Defect')
+#         G_norm = np.linalg.norm(np.abs(G), ord=2)
+#         if G_norm < tol:
+#             break
+#     if last_iter == max_iter - 1:
+#         print(f'WARNING: the maximum iterations ({max_iter}) were reached!')
 
-    m_0 = c.copy()
-    m_0[:, dil] *= network['pore.volume']
-    m_0[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
-    for i in range(max_iter):
-        last_iter = i
-        dx = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
-        x = x + dx
-        c = x.reshape(c.shape)
-        J, G = ComputeSystem(x, c, 'Jacobian')
-        G_norm = np.linalg.norm(np.abs(G), ord=2)
-        if G_norm < tol:
-            break
-    if last_iter == max_iter - 1:
-        print(f'WARNING: the maximum iterations ({max_iter}) were reached!')
+#     m = c.copy()
+#     m[:, dil] *= network['pore.volume']
+#     m[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
+#     err = np.sum(m - m_0)/np.sum(m_0)
+#     success &= err < 1e-8
 
-    m = c.copy()
-    m[:, dil] *= network['pore.volume']
-    m[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
-    err = np.sum(m - m_0)/np.sum(m_0)
-    success &= err < 1e-12
-
-    c_ads = y_f(c[:, dil], c[:, ads]).reshape((-1))
-    err_ads = np.max(np.abs((c_ads-c[:, ads])/c_ads))
-    success &= err_ads < 1e-5
-    if output:
-        print(f'{last_iter + 1} it [{G_norm:1.2e}]\
-            mass-loss [{err:1.2e}] isotherm-error [{err_ads:1.2e}]')
-    return success
+#     theta_final = y_f(c[:, dil], c[:, ads])
+#     c_ads = theta_final
+#     err_ads = np.max(np.abs((c_ads-c[:, ads])/c_ads))
+#     success &= err_ads < 1e-5
+#     if output:
+#         print(f'{last_iter + 1} it [{G_norm:1.2e}]\
+#             mass-loss [{err:1.2e}] isotherm-error [{err_ads:1.2e}]')
+#     return success
 
 
-def run_Freundlich(output: bool = True):
-    Nx = 10
-    Ny = 1
-    Nz = 1
-    Nc = 3
-    spacing = 1./Nx
+# def run_Langmuir(output: bool = True):
+#     Nx = 10
+#     Ny = 1
+#     Nz = 1
+#     Nc = 3
+#     spacing = 1./Nx
 
-    # get network
-    network = op.network.Cubic([Nx, Ny, Nz], spacing=spacing)
+#     # get network
+#     network = op.network.Cubic([Nx, Ny, Nz], spacing=spacing)
 
-    # add geometry
-    network.add_model_collection(op.models.collections.geometry.spheres_and_cylinders, domain='all')
-    network.regenerate_models()
+#     # add geometry
+#     network.add_model_collection(op.models.collections.geometry.spheres_and_cylinders, domain='all')
+#     network.regenerate_models()
 
-    # adsorption data
-    ads = 0
-    dil = 1
+#     # adsorption data
+#     ads = 0
+#     dil = 1
 
-    a_V = np.full((network.Np, 1), fill_value=10., dtype=float)
+#     ymax = np.full((network.Np, 1), fill_value=95., dtype=float)
+#     a_V = np.full((network.Np, 1), fill_value=10., dtype=float)
 
-    def y_f(c_f, c_ads):
-        return Freundlich(c_f, 0.1, 1.5)
+#     def y_f(c_f, c_ads):
+#         return Langmuir(c_f.reshape((-1, 1)), K=0.1, y_max=ymax)
 
-    c = np.zeros((network.Np, Nc))
-    c[:, dil] = np.linspace(0.1, 1., c.shape[0])
-    mt = MulticomponentTools(network=network, num_components=Nc)
+#     c = np.zeros((network.Np, Nc))
+#     c[:, dil] = np.linspace(0.1, 1., c.shape[0])
+#     mt = MulticomponentTools(network=network, num_components=Nc)
 
-    x = c.reshape((-1, 1))
-    dx = np.zeros_like(x)
+#     x = c.reshape((-1, 1))
+#     dx = np.zeros_like(x)
 
-    tol = 1e-12
-    max_iter = 100
-    ddt = mt.get_ddt(dt=1.)
+#     tol = 1e-12
+#     max_iter = 100
+#     ddt = mt.get_ddt(dt=1.)
 
-    success = True
-    x_old = x.copy()
+#     success = True
+#     x_old = x.copy()
 
-    def ComputeSystem(x, c_l, type):
-        J_ads, G_ads = AdsorptionSingleComponent(c=c_l,
-                                                 dilute=dil, adsorbed=ads,
-                                                 Vp=network['pore.volume'], a_v=a_V,
-                                                 y_func=y_f, exclude=2,
-                                                 type=type, dc=1e-6)
-        G = ddt * (x - x_old) + G_ads
-        if type == 'Defect':
-            return G
-        J = ddt + J_ads
-        return J, G
+#     def ComputeSystem(x, c_l, type):
+#         J_ads, G_ads = AdsorptionSingleComponent(c=c_l,
+#                                                  dilute=dil, adsorbed=ads,
+#                                                  Vp=network['pore.volume'], a_v=a_V,
+#                                                  y_func=y_f, exclude=2,
+#                                                  type=type, dc=1e-6)
+#         G = ddt * (x - x_old) + G_ads
+#         if type == 'Defect':
+#             return G
+#         J = ddt + J_ads
+#         return J, G
 
-    J, G = ComputeSystem(x, c, 'Jacobian')
+#     J, G = ComputeSystem(x, c, 'Jacobian')
 
-    m_0 = c.copy()
-    m_0[:, dil] *= network['pore.volume']
-    m_0[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
-    for i in range(max_iter):
-        last_iter = i
-        dx = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
-        x = x + dx
-        c = x.reshape(c.shape)
-        J, G = ComputeSystem(x, c, 'Jacobian')
-        G_norm = np.linalg.norm(np.abs(G), ord=2)
-        if G_norm < tol:
-            break
-    if last_iter == max_iter - 1:
-        print(f'WARNING: the maximum iterations ({max_iter}) were reached!')
+#     m_0 = c.copy()
+#     m_0[:, dil] *= network['pore.volume']
+#     m_0[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
+#     for i in range(max_iter):
+#         last_iter = i
+#         dx = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
+#         x = x + dx
+#         c = x.reshape(c.shape)
+#         J, G = ComputeSystem(x, c, 'Jacobian')
+#         G_norm = np.linalg.norm(np.abs(G), ord=2)
+#         if G_norm < tol:
+#             break
+#     if last_iter == max_iter - 1:
+#         print(f'WARNING: the maximum iterations ({max_iter}) were reached!')
 
-    m = c.copy()
-    m[:, dil] *= network['pore.volume']
-    m[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
-    err = np.sum(m - m_0)/np.sum(m_0)
-    success &= err < 1e-12
+#     m = c.copy()
+#     m[:, dil] *= network['pore.volume']
+#     m[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
+#     err = np.sum(m - m_0)/np.sum(m_0)
+#     success &= err < 1e-12
 
-    c_ads = y_f(c[:, dil], c[:, ads])
-    err_ads = np.max(np.abs((c_ads-c[:, ads])/c_ads))
-    success &= err_ads < 1e-5
-    if output:
-        print(f'{last_iter + 1} it [{G_norm:1.2e}]\
-            mass-loss [{err:1.2e}] isotherm-error [{err_ads:1.2e}]')
-    return success
+#     c_ads = y_f(c[:, dil], c[:, ads]).reshape((-1))
+#     err_ads = np.max(np.abs((c_ads-c[:, ads])/c_ads))
+#     success &= err_ads < 1e-5
+#     if output:
+#         print(f'{last_iter + 1} it [{G_norm:1.2e}]\
+#             mass-loss [{err:1.2e}] isotherm-error [{err_ads:1.2e}]')
+#     return success
+
+
+# def run_Freundlich(output: bool = True):
+#     Nx = 10
+#     Ny = 1
+#     Nz = 1
+#     Nc = 3
+#     spacing = 1./Nx
+
+#     # get network
+#     network = op.network.Cubic([Nx, Ny, Nz], spacing=spacing)
+
+#     # add geometry
+#     network.add_model_collection(op.models.collections.geometry.spheres_and_cylinders, domain='all')
+#     network.regenerate_models()
+
+#     # adsorption data
+#     ads = 0
+#     dil = 1
+
+#     a_V = np.full((network.Np, 1), fill_value=10., dtype=float)
+
+#     def y_f(c_f, c_ads):
+#         return Freundlich(c_f, 0.1, 1.5)
+
+#     c = np.zeros((network.Np, Nc))
+#     c[:, dil] = np.linspace(0.1, 1., c.shape[0])
+#     mt = MulticomponentTools(network=network, num_components=Nc)
+
+#     x = c.reshape((-1, 1))
+#     dx = np.zeros_like(x)
+
+#     tol = 1e-12
+#     max_iter = 100
+#     ddt = mt.get_ddt(dt=1.)
+
+#     success = True
+#     x_old = x.copy()
+
+#     def ComputeSystem(x, c_l, type):
+#         J_ads, G_ads = AdsorptionSingleComponent(c=c_l,
+#                                                  dilute=dil, adsorbed=ads,
+#                                                  Vp=network['pore.volume'], a_v=a_V,
+#                                                  y_func=y_f, exclude=2,
+#                                                  type=type, dc=1e-6)
+#         G = ddt * (x - x_old) + G_ads
+#         if type == 'Defect':
+#             return G
+#         J = ddt + J_ads
+#         return J, G
+
+#     J, G = ComputeSystem(x, c, 'Jacobian')
+
+#     m_0 = c.copy()
+#     m_0[:, dil] *= network['pore.volume']
+#     m_0[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
+#     for i in range(max_iter):
+#         last_iter = i
+#         dx = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
+#         x = x + dx
+#         c = x.reshape(c.shape)
+#         J, G = ComputeSystem(x, c, 'Jacobian')
+#         G_norm = np.linalg.norm(np.abs(G), ord=2)
+#         if G_norm < tol:
+#             break
+#     if last_iter == max_iter - 1:
+#         print(f'WARNING: the maximum iterations ({max_iter}) were reached!')
+
+#     m = c.copy()
+#     m[:, dil] *= network['pore.volume']
+#     m[:, ads] *= network['pore.volume'] * a_V.reshape((-1))
+#     err = np.sum(m - m_0)/np.sum(m_0)
+#     success &= err < 1e-12
+
+#     c_ads = y_f(c[:, dil], c[:, ads])
+#     err_ads = np.max(np.abs((c_ads-c[:, ads])/c_ads))
+#     success &= err_ads < 1e-5
+#     if output:
+#         print(f'{last_iter + 1} it [{G_norm:1.2e}]\
+#             mass-loss [{err:1.2e}] isotherm-error [{err_ads:1.2e}]')
+#     return success
 
 
 if __name__ == '__main__':
