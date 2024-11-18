@@ -255,23 +255,24 @@ def multi_component(c, c_old,
         relative differentiation interval
     Notes
     -----
-    Here, the Jacobian and Defect fo implementing adsorption of multiple components are computed
+    Here, the Jacobian and Defect for implementing adsorption of multiple components are computed
     The underlying adsorption is assumed to look as follows:
 
     .. math::
-        \phi_{ads} = \theta(c) * a_v
+        \phi_{ads} = \theta(\phi_f) * a_v
 
-    with the surface load \theta and the specific surface area a_v
+    with the surface concentration \phi_{ads}, surface load \theta, specific surface area a_v and concentration
+    in the fluid phase \phi_f
 
     In discretized form this becomes:
 
     .. math::
-        \int \frac{\partial c_{ads}}{\partial t} \mathrm{d}V
-        \approx a_v * \Delta V * \frac{K(c^{n+1})-K(c^{n})}{\Delta t}
+        \frac{\phi_{f}^{n+1}-\phi_{f}^n}{\partial t} \Delta V
+        + a_v * \frac{\theta(\phi^{n+1})-\theta(\phi^{n})}{\Delta t} \Delta V = 0
 
-    Subsequently the defect is defined as:
+    Subsequently the adsorption component of the defect is defined as:
     .. math::
-        G = a_v * \Delta V * \frac{K(c^{n+1})-K(c^{n})}{\Delta t}
+        G_{ads} = a_v * \Delta V * \frac{\theta(\phi^{n+1})-\theta(\phi^{n})}{\Delta t}
 
     With that, the Jacobian can be computed by numerical differentiation.
     """
@@ -298,7 +299,7 @@ def multi_component(c, c_old,
         return G.reshape((-1, 1))
 
     if stype == 'jacobian':
-        A, b = num_diff.conduct_numerical_differentiation(c, defect_func=Defect, type=diff_type)
+        A, b = num_diff.conduct_numerical_differentiation(c, defect_func=Defect, type=diff_type, dc=dc)
     else:
         b = Defect(c)
 
