@@ -4,7 +4,23 @@ import numpy as np
 from pnm_mctools import ToolSet as ts
 
 
-def unpack_info(network, bc) -> Tuple[Any, int, int, int, Any]:
+def unpack_info(network, bc) -> Tuple[Any, int, int, Any]:
+    r"""
+    helper function for unpacking required information from generic data
+
+    Parameters
+    ----------
+    network
+        an OpenPNM network type of object or an object with following function signatures
+            get_network() -> returns OpenPNM network
+            get_bc() -> returns boundary conditions (only required if bc = None)
+    bc
+        structure with boundary conditions
+
+    Returns
+    -------
+    tuple of network, number of pores, number of throats and boundary conditions
+    """
     if isinstance(network, ts.MulticomponentTools):
         net = network.get_network()
         if bc is None:
@@ -19,6 +35,26 @@ def unpack_info(network, bc) -> Tuple[Any, int, int, int, Any]:
 
 
 def set(mt: ts.MulticomponentTools, **kwargs):
+    r"""
+    adds to or overwrites the boundary condition in an MultiComponentTools object
+
+    Parameters
+    ----------
+    mt: MulticomponentTools
+        instance of MulticomponentTools to which the boundary conditions are added
+    kwargs
+        variable input parameters:
+            - id: int - positional id of the components, by default 0
+            - label: str - identifier of the affected boundary pores
+            - bc: float | dict | set - boundary condition structure
+
+    Notes
+    -----
+    Consider following examples for illustration:
+        set(mt, label='inlet', bc={'prescribed': 1.})   # prescribed value at the 'inlet' boundary pores for component 0
+        set(mt, label='outlet', bc={'outflow'})         # an outflow boundary conditions at the 'outlet' boundary for component 0   # noqa: E501
+        set(mt, id=1, label='top', bc=1.)               # sets a prescribed value at the 'top' boundary for component 1
+    """
     id, label, bc = 0, 'None', None
     Nc = mt.get_num_components()
 
