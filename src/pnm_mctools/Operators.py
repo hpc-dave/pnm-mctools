@@ -4,31 +4,6 @@ import scipy
 from pnm_mctools import ToolSet as ts
 
 
-def _compute_flux_matrix(Nt: int, Nc: int, *args):
-    r"""
-    computes matrix of size [Np*Nc, Nt*Nc], where all arguments are multiplied with the last argument
-
-    Parameters
-    ----------
-    Factors to multiply with the final argument, where the final argument is a [Nt*Nc, Np*Nc] matrix
-
-    Returns
-    -------
-    [Np*Nc, Nt*Nc] sized matrix
-    """
-    fluxes = args[-1].copy()
-    for i in range(len(args)-1):
-        arg = args[i]
-        if isinstance(arg, list) and len(arg) == Nc:
-            fluxes = fluxes.multiply(np.tile(np.asarray(arg), Nt))
-        elif isinstance(arg, np.ndarray):
-            _arg = np.tile(arg.reshape(-1, 1), reps=(1, Nc)) if arg.size == Nt else arg
-            fluxes = fluxes.multiply(_arg.reshape(-1, 1))
-        else:
-            fluxes = fluxes.multiply(args[i])
-    return fluxes
-
-
 def unpack_network(network, Nc, include, exclude) -> Tuple[Any, int, int, int, Any]:
     if isinstance(network, ts.MulticomponentTools):
         net = network.get_network()
@@ -42,76 +17,6 @@ def unpack_network(network, Nc, include, exclude) -> Tuple[Any, int, int, int, A
     Nt = net.Nt
     include = ts.get_include(include=include, exclude=exclude, Nc=Nc)
     return net, Np, Nt, Nc, include
-
-
-class SumObject:
-    r"""
-    A helper object, which acts as a matrix, but also provides convenient overloads
-    """
-    def __init__(self, matrix, Nc: int, Nt: int):
-        r"""
-        Initializes the object
-
-        Parameters
-        ----------
-        matrix:
-            A matrix for computing a sum/divergence matrix
-        Nc: int
-            number of components
-        Nt:
-            number of throats
-        """
-        self.matrix = matrix
-        self.Nt = Nt
-        self.Nc = Nc
-
-    def __mul__(self, other):
-        r"""
-        multiplication operator
-
-        Parameters
-        ----------
-        other:
-            vector, matrix or scalar to multiply with the internal matrix
-
-        Returns
-        -------
-        quadratic matrix or vector, depending on the input type
-        """
-        return self.matrix * other
-
-    def __matmul__(self, other):
-        r"""
-        matrix multiplication operator
-
-        Parameters
-        ----------
-        other:
-            vector, matrix or scalar to multiply with the internal matrix
-
-        Returns
-        -------
-        quadratic matrix or vector, depending on the input type
-        """
-        return self.matrix @ other
-
-    def __call__(self, *args):
-        r"""
-        calling operator, for convenience to provide high readability of the code
-
-        Parameters
-        ----------
-        args:
-            multiple arguments, which are multiplied with the last instance
-
-        Returns
-        -------
-        quadratic matrix or vector, depending on the input type
-        """
-        return self.matrix * _compute_flux_matrix(self.Nt, self.Nc, *args)
-
-    def multiply(self, *args, **kwargs):
-        return self.matrix.multiply(*args, **kwargs)
 
 
 def ddt(c: np.ndarray | None = None,
@@ -194,7 +99,7 @@ def ddt(c: np.ndarray | None = None,
 def sum(network,
         include: int | List[int] | None = None,
         exclude: int | List[int] | None = None,
-        Nc: int | None = None) -> SumObject:
+        Nc: int | None = None) -> ts.SumObject:
     r"""
     Constructs summation matrix
 
@@ -260,7 +165,7 @@ def sum(network,
     # converting to CSR format for improved computation
     sum_mat = scipy.sparse.csr_matrix(sum_mat)
 
-    return SumObject(matrix=sum_mat, Nc=Nc, Nt=Nt)
+    return ts.SumObject(matrix=sum_mat, Nc=Nc, Nt=Nt)
 
 
 def gradient(network,

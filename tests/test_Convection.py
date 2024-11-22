@@ -1,20 +1,15 @@
-import sys
-from pathlib import Path
-parent_dir = Path(__file__).parent.parent
-sys.path.append(str(parent_dir))
-
-import openpnm as op                                      # noqa: E402
-import scipy.linalg                                       # noqa: E402
-import scipy.sparse                                       # noqa: E402
-import models.const_spheres_and_cylinders as geo_model    # noqa: E402
-import numpy as np                                        # noqa: E402
-import scipy                                              # noqa: E402
-from ToolSet import MulticomponentTools                   # noqa: E402
-import Operators as ops                                   # noqa: E402
-import Interpolation as ip                                # noqa: E402
+import openpnm as op                                                  # noqa: E402
+import scipy.linalg                                                   # noqa: E402
+import scipy.sparse                                                   # noqa: E402
+import pnm_mctools.models.const_spheres_and_cylinders as geo_model    # noqa: E402
+import numpy as np                                                    # noqa: E402
+import scipy                                                          # noqa: E402
+from pnm_mctools.ToolSet import MulticomponentTools                   # noqa: E402
+import pnm_mctools.Operators as ops                                   # noqa: E402
+import pnm_mctools.Interpolation as ip                                # noqa: E402
 
 
-def run(output: bool = True):
+def test_convection(output: bool = False):
 
     Nx = 100
     Ny = 1
@@ -78,7 +73,7 @@ def run(output: bool = True):
 
     mass_init = np.sum(x)
     peakpos_init = (np.argmax(c[:, 0]), np.argmax(c[:, 1]))
-    success = True
+
     for t in tsteps:
         x_old = x.copy()
         pos += 1
@@ -100,15 +95,9 @@ def run(output: bool = True):
         peakpos = (np.argmax(c[:, 0]), np.argmax(c[:, 1]))
         mass_err = (mass_init - mass)/mass_init
         peakpos_err = [int(peakpos[n]-(peakpos_init[n] + pos * dt * v[n]/spacing)) for n in range(Nc)]
-        success &= np.abs(mass_err) < 1e-12
-        success &= np.max(np.abs(peakpos_err)) < 2
+        assert np.abs(mass_err) < 1e-12, 'the mass conservation error is too high!'
+        assert np.max(np.abs(peakpos_err)) < 2, 'the peak is too far away from the ideal position!'
         if output:
             print(f'{t}/{len(tsteps)} - {time}: {last_iter + 1} it -\
                 G [{G_norm:1.2e}] mass [{mass_err:1.2e}] peak-err [{peakpos_err}]')
         time += dt
-
-    return success
-
-
-if __name__ == '__main__':
-    run(output=True)
