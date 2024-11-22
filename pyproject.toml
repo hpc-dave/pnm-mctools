@@ -39,3 +39,7 @@ Repository = "https://github.com/hpc-dave/pnm-mctools"
 addopts = [
     "--import-mode=importlib",
 ]
+filterwarnings = [
+    "error",
+    'ignore::DeprecationWarning'
+]
