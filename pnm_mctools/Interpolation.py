@@ -1,7 +1,10 @@
 from typing import List
 import numpy as np
 import scipy
-from . import Operators as ops
+try:
+    from . import Operators as ops
+except ImportError:
+    import Operators as ops
 
 
 def upwind(network,
