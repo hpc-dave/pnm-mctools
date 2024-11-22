@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from . import ToolSet as ts
+from pnm_mctools import ToolSet as ts
 
 
 def _default_mapping(type: str) -> list:

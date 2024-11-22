@@ -1,39 +1,14 @@
-import sys
-from pathlib import Path
-parent_dir = Path(__file__).parent.parent
-sys.path.append(str(parent_dir))
-
-import openpnm as op                                        # noqa: E402
-import scipy.linalg                                         # noqa: E402
-import scipy.sparse                                         # noqa: E402
-import numpy as np                                          # noqa: E402
-import scipy                                                # noqa: E402
-from ToolSet import MulticomponentTools                     # noqa: E402
-import Operators as ops                                     # noqa: E402
-import Adsorption as ads                                    # noqa: E402
+import openpnm as op                                                    # noqa: E402
+import scipy.linalg                                                     # noqa: E402
+import scipy.sparse                                                     # noqa: E402
+import numpy as np                                                      # noqa: E402
+import scipy                                                            # noqa: E402
+from pnm_mctools.ToolSet import MulticomponentTools                     # noqa: E402
+import pnm_mctools.Operators as ops                                     # noqa: E402
+import pnm_mctools.Adsorption as ads                                    # noqa: E402
 
 
-def run(output: bool = True):
-    success = True
-    if not run_single_linear(output):
-        success = False
-        print('Linear failed')
-    if not run_single_Langmuir(output):
-        success = False
-        print('Langmuir failed')
-    # success &= run_Linear(output)
-    # if not success:
-    #     print('Linear failed')
-    # success &= run_Langmuir(output)
-    # if not success:
-    #     print('Linear failed')
-    # success &= run_Freundlich(output)
-    # if not success:
-    #     print('Linear failed')
-    return success
-
-
-def run_single_linear(output: bool = True):
+def test_single_linear(output: bool = False):
     Nx = 10
     Ny = 1
     Nz = 1
@@ -83,8 +58,6 @@ def run_single_linear(output: bool = True):
     G_source[:, id_ads] = -source * network['pore.volume'].reshape((-1))
     G_source = G_source.reshape((-1, 1))
 
-    success = True
-
     K_init = K_lin(c[:, id_ads])
     m_0 = c.copy()
     m_0[:, id_ads] *= (1. + K_init*a_V).reshape((-1))
@@ -113,8 +86,7 @@ def run_single_linear(output: bool = True):
         G_norm = np.linalg.norm(np.abs(G), ord=2)
         if G_norm < tol:
             break
-    if last_iter == max_iter - 1:
-        print(f'WARNING: the maximum iterations ({max_iter}) were reached!')
+    assert last_iter < max_iter - 1
 
     K_final = K_lin(c[:, id_ads]).reshape((-1, 1))
     m = c.copy()
@@ -123,14 +95,13 @@ def run_single_linear(output: bool = True):
     m_s = np.zeros_like(c)
     m_s[:, id_ads] = source * network['pore.volume'].reshape((-1))
     err = np.sum(m - (m_0 + m_s))/np.sum(m_0)
-    success &= err < 1e-8
+    assert err < 1e-8
 
     if output:
         print(f'{last_iter + 1} it [{G_norm:1.2e}] mass-loss [{err:1.2e}]')
-    return success
 
 
-def run_single_Langmuir(output: bool = True):
+def test_single_Langmuir(output: bool = False):
     Nx = 10
     Ny = 1
     Nz = 1
@@ -171,7 +142,6 @@ def run_single_Langmuir(output: bool = True):
     G_source[:, id_ads] = -source * network['pore.volume'].reshape((-1))
     G_source = G_source.reshape((-1, 1))
 
-    success = True
     x_old = x.copy()
 
     def ComputeSystem(x, c_l, c_old, stype):
@@ -201,8 +171,7 @@ def run_single_Langmuir(output: bool = True):
         G_norm = np.linalg.norm(np.abs(G), ord=2)
         if G_norm < tol:
             break
-    if last_iter == max_iter - 1:
-        print(f'WARNING: the maximum iterations ({max_iter}) were reached!')
+    assert last_iter < max_iter - 1
 
     theta_final = theta_Langmuir(c[:, id_ads]).reshape((-1, 1))
     m = c.copy()
@@ -211,11 +180,10 @@ def run_single_Langmuir(output: bool = True):
     m_s = np.zeros_like(c)
     m_s[:, id_ads] = source * network['pore.volume'].reshape((-1))
     err = np.sum(m - (m_0 + m_s))/np.sum(m_0)
-    success &= err < 1e-8
+    assert err < 1e-8
     if output:
         print(f'{last_iter + 1} it [{G_norm:1.2e}]\
             mass-loss [{err:1.2e}]')
-    return success
 
 # def run_Linear(output: bool = True):
 #     Nx = 10
@@ -460,7 +428,3 @@ def run_single_Langmuir(output: bool = True):
 #         print(f'{last_iter + 1} it [{G_norm:1.2e}]\
 #             mass-loss [{err:1.2e}] isotherm-error [{err_ads:1.2e}]')
 #     return success
-
-
-if __name__ == '__main__':
-    run()

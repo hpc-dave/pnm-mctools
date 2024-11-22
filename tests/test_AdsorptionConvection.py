@@ -1,34 +1,17 @@
-import sys
-from pathlib import Path
-parent_dir = Path(__file__).parent.parent
-sys.path.append(str(parent_dir))
-
-import openpnm as op                                        # noqa: E402
-import scipy.linalg                                         # noqa: E402
-import scipy.sparse                                         # noqa: E402
-import numpy as np                                          # noqa: E402
-import scipy                                                # noqa: E402
-from ToolSet import MulticomponentTools                     # noqa: E402
-import models.const_spheres_and_cylinders as geo_model      # noqa: E402
-import Operators as ops                                     # noqa: E402
-import Adsorption as ads                                    # noqa: E402
-import Interpolation as ip                                  # noqa: E402
-import BoundaryConditions as bc                             # noqa: E402
+import openpnm as op                                                    # noqa: E402
+import scipy.linalg                                                     # noqa: E402
+import scipy.sparse                                                     # noqa: E402
+import numpy as np                                                      # noqa: E402
+import scipy                                                            # noqa: E402
+from pnm_mctools.ToolSet import MulticomponentTools                     # noqa: E402
+import pnm_mctools.models.const_spheres_and_cylinders as geo_model      # noqa: E402
+import pnm_mctools.Operators as ops                                     # noqa: E402
+import pnm_mctools.Adsorption as ads                                    # noqa: E402
+import pnm_mctools.Interpolation as ip                                  # noqa: E402
+import pnm_mctools.BoundaryConditions as bc                             # noqa: E402
 
 
-def run(output: bool = True):
-    success = True
-    if not run_convection_linear(output):
-        success = False
-        print('Convection Linear failed')
-    if not run_convection_Langmuir(output):
-        success = False
-        print('Convection Langmuir failed')
-
-    return success
-
-
-def run_convection_linear(output: bool = True):
+def test_convection_linear(output: bool = True):
     Nx = 10
     Ny = 1
     Nz = 1
@@ -84,8 +67,6 @@ def run_convection_linear(output: bool = True):
                                      network=mt,
                                      a_v=a_V)
 
-    success = True
-
     K_init = K_lin(c[:, id_ads])
     m_0 = c.copy()
     m_0[:, id_ads] *= (1. + K_init*a_V).reshape((-1))
@@ -129,25 +110,11 @@ def run_convection_linear(output: bool = True):
             G_norm = np.linalg.norm(np.abs(G), ord=2)
             if G_norm < tol:
                 break
-        if last_iter == max_iter - 1:
-            print(f'WARNING: the maximum iterations ({max_iter}) were reached!')
+        assert last_iter < (max_iter-1)
         pulse_out[n] = c[-2, id_ads]
 
-    # K_final = K_lin(c[:, id_ads]).reshape((-1, 1))
-    # m = c.copy()
-    # m[:, id_ads] *= (1. + K_final*a_V).reshape((-1))
-    # m *= network['pore.volume'].reshape((-1, 1))
-    # m_s = np.zeros_like(c)
-    # m_s[:, id_ads] = source * network['pore.volume'].reshape((-1))
-    # err = np.sum(m - (m_0 + m_s))/np.sum(m_0)
-    # success &= err < 1e-8
 
-    # if output:
-    #     print(f'{last_iter + 1} it [{G_norm:1.2e}] mass-loss [{err:1.2e}]')
-    return success
-
-
-def run_convection_Langmuir(output: bool = True):
+def test_convection_Langmuir(output: bool = True):
     Nx = 50
     Ny = 1
     Nz = 1
@@ -184,7 +151,6 @@ def run_convection_Langmuir(output: bool = True):
 
     tol = 1e-12
     max_iter = 100
-    success = True
 
     pulse_dict = {}
 
@@ -234,25 +200,7 @@ def run_convection_Langmuir(output: bool = True):
             G_norm = np.linalg.norm(np.abs(G), ord=2)
             if G_norm < tol:
                 break
-        if last_iter == max_iter - 1:
-            print(f'WARNING: the maximum iterations ({max_iter}) were reached!')
+        assert last_iter < (max_iter-1)
         pulse_out[n] = c[-2, id_ads]
 
     pulse_dict[f'K={K_ads} - ymax={y_max}'] = pulse_out.copy()
-
-    # K_final = K_lin(c[:, id_ads]).reshape((-1, 1))
-    # m = c.copy()
-    # m[:, id_ads] *= (1. + K_final*a_V).reshape((-1))
-    # m *= network['pore.volume'].reshape((-1, 1))
-    # m_s = np.zeros_like(c)
-    # m_s[:, id_ads] = source * network['pore.volume'].reshape((-1))
-    # err = np.sum(m - (m_0 + m_s))/np.sum(m_0)
-    # success &= err < 1e-8
-
-    # if output:
-    #     print(f'{last_iter + 1} it [{G_norm:1.2e}] mass-loss [{err:1.2e}]')
-    return success
-
-
-if __name__ == '__main__':
-    run()

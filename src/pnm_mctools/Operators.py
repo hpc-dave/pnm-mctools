@@ -1,10 +1,7 @@
 from typing import List, Tuple, Any
 import numpy as np
 import scipy
-try:
-    import ToolSet as ts
-except ImportError:
-    from . import ToolSet as ts
+from pnm_mctools import ToolSet as ts
 
 
 def _compute_flux_matrix(Nt: int, Nc: int, *args):

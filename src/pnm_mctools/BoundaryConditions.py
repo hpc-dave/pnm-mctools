@@ -1,10 +1,7 @@
 from typing import Tuple, Any, Set
 import scipy
 import numpy as np
-try:
-    from . import ToolSet as ts
-except ImportError:
-    import ToolSet as ts
+from pnm_mctools import ToolSet as ts
 
 
 def unpack_info(network, bc) -> Tuple[Any, int, int, int, Any]:
