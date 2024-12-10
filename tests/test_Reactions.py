@@ -134,3 +134,24 @@ def test_LinearReaction_check_ids(network):
                                  num_components=num_components,
                                  k=k,
                                  educt=educt, product=product)
+
+    with pytest.raises(ValueError):
+        Reactions.LinearReaction(network,
+                                 num_components=num_components,
+                                 k=k)
+
+    with pytest.raises(ValueError):
+        Reactions.LinearReaction(network,
+                                 num_components=num_components,
+                                 k=k,
+                                 educt=0, component=1)
+    with pytest.raises(ValueError):
+        Reactions.LinearReaction(network,
+                                 num_components=num_components,
+                                 k=k,
+                                 product=0, component=1)
+    with pytest.raises(ValueError):
+        Reactions.LinearReaction(network,
+                                 num_components=num_components,
+                                 k=None,
+                                 educt=educt)

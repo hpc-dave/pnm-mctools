@@ -3,7 +3,13 @@ import scipy
 import scipy.sparse
 
 
-def LinearReaction(network, num_components: int, k, component:int | None = None, educt: int | None = None, product=None, weight='pore.volume'):
+def LinearReaction(network,
+                   num_components: int,
+                   k,
+                   component: int | None = None,
+                   educt: int | None = None,
+                   product=None,
+                   weight='pore.volume'):
     r"""
     A convenience function to provide an implicit source term based on a linear reaction
 
