@@ -19,7 +19,7 @@ def unpack_network(network, Nc, include, exclude) -> Tuple[Any, int, int, int, A
     return net, Np, Nt, Nc, include
 
 
-def ddt(c: np.ndarray | None = None,
+def ddt(c: np.ndarray | Any | None = None,
         network=None,
         dt: float = 1.,
         weight: np.ndarray | str = 'pore.volume',
@@ -31,8 +31,10 @@ def ddt(c: np.ndarray | None = None,
 
     Parameters
     ----------
-    c: np.ndarray|ts.MulticomponentTools
+    c: np.ndarray | Any | None
         array with species or tool with relevant information
+    network
+        openpnm network or MulticomponentTools
     dt: float
         discretized time step size
     weight: np.ndarray|str
@@ -89,7 +91,7 @@ def ddt(c: np.ndarray | None = None,
         if dVdt.size == Np:
             dVdt = np.tile(A=dVdt, reps=Nc)
         if include is not None:
-            mask = np.asarray([n in include for n in range(Np)], dtype=bool).reshape((1, -1))
+            mask = np.asarray([n in include for n in range(Nc)], dtype=bool).reshape((1, -1))
             mask = np.tile(A=mask, reps=(Np, 1))
             dVdt[~mask] = 0.
     ddt = scipy.sparse.spdiags(data=[dVdt.ravel()], diags=[0])
