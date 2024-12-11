@@ -53,7 +53,6 @@ def test_ddt_network(network):
 
 
 def test_ddt_include(network):
-
     Np = network.num_pores()
     Nc = 2
     dt = 1.5
@@ -77,5 +76,38 @@ def test_ddt_include(network):
     err_max = np.max(ddt_coo - ddt_comp)
     assert err_max == 0.
 
+
+def test_ddt_network_custom_weight(network):
+
+    Np = network.num_pores()
+    Nc = 2
+    dt = 1.5
+    weight = -0.33
+    weight = np.full((Np), fill_value=weight)
+    ddt = ops.ddt(network, dt=dt, weight=weight, Nc=Nc)
+    ddt_coo = scipy.sparse.coo_matrix(ddt)
+
+    rows = np.array(range(Np*Nc))
+    cols = rows
+    data = np.tile(weight.reshape((-1, 1)), reps=(1, Nc)).reshape((-1)) / dt
+
+    ddt_comp = scipy.sparse.coo_matrix((data, (rows, cols)))
+
+    err_max = np.max(ddt_coo - ddt_comp)
+    assert err_max == 0.
+
+
 def test_ddt_exceptions(network):
-    assert False, 'not implemented'
+    dt = 1.5
+    Nc = 2
+    weight = 'pore.volume'
+    with pytest.raises(ValueError):
+        ops.ddt(dt=dt, Nc=Nc, weight=weight)
+
+    with pytest.raises(ValueError):
+        ops.ddt(network=network, dt=-0.1, Nc=Nc, weight=weight)
+
+    with pytest.raises(ValueError):
+        Np = 5
+        c = np.zeros((Np, Nc), dtype=float)
+        ops.ddt(c=c, network=network, dt=dt, Nc=Nc, weight=weight)

@@ -5,6 +5,30 @@ from pnm_mctools import ToolSet as ts
 
 
 def unpack_network(network, Nc, include, exclude) -> Tuple[Any, int, int, int, Any]:
+    r"""
+    A helper across the various functions below
+
+    Parameters
+    ----------
+        network
+            An instance which will be evaluated
+        Nc
+            number of components
+        include
+            an array of components to include
+        exclude
+            an array of components to exclude
+
+    Returns
+    -------
+        a tuple with:
+            - an OpenPNM like network
+            - number of pores
+            - number of throats
+            - number of components
+            - a list of included components
+
+    """
     if isinstance(network, ts.MulticomponentTools):
         net = network.get_network()
         if Nc is None:
@@ -31,34 +55,35 @@ def ddt(c: np.ndarray | Any | None = None,
 
     Parameters
     ----------
-    c: np.ndarray | Any | None
-        array with species or tool with relevant information
-    network
-        openpnm network or MulticomponentTools
-    dt: float
-        discretized time step size
-    weight: np.ndarray|str
-        a weight which can be applied to the time derivative, usually that should be
-        the volume of the computational cell, the string is only allowed if an instance of
-        MulticomponentTools is provided
-    include: int|list[int]|None
-        an ID or list of IDs which should be included in the matrix, if 'None' is provided,'
-        all values will be used
-    exclude: int|list[int]|None
-        inverse of include, without effect if include is specified
+        c: np.ndarray | Any | None
+            array with species or tool with relevant information
+        network
+            openpnm network or MulticomponentTools
+        dt: float
+            discretized time step size
+        weight: np.ndarray|str
+            a weight which can be applied to the time derivative, usually that should be
+            the volume of the computational cell, the string is only allowed if an instance of
+            MulticomponentTools is provided
+        include: int|list[int]|None
+            an ID or list of IDs which should be included in the matrix, if 'None' is provided,'
+            all values will be used
+        exclude: int|list[int]|None
+            inverse of include, without effect if include is specified
+
     Returns
     -------
-    Matrix in CSR format
+        Matrix in CSR format
 
     Notes
     -----
-    By default, a finite volume discretization is assumed, therefore the standard form of
-    the partial derivative is given by
+        By default, a finite volume discretization is assumed, therefore the standard form of
+        the partial derivative is given by
 
-    \iiint \frac{\partial}{\partial t} \mathrm{d}V \approx \frac{\Delta V}{\Delta t}
+        \iiint \frac{\partial}{\partial t} \mathrm{d}V \approx \frac{\Delta V}{\Delta t}
 
-    Note that here the integrated variable is ommitted in the description, as it will be provided
-    either by the solution vector for implicit treatment and by the field for explicit components
+        Note that here the integrated variable is ommitted in the description, as it will be provided
+        either by the solution vector for implicit treatment and by the field for explicit components
     """
 
     if isinstance(c, np.ndarray):
@@ -192,7 +217,8 @@ def gradient(network,
         exlude: int|[int]|None
             inverse of include, without effect if include is specified
         Nc: int|None
-            number of components, needs to be specified if used if network doesn't have the function get_num_components
+            number of components, needs to be specified if used if network doesn't have the function get_num_component
+
     Returns
     -------
         a gradient matrix in CSR-format
@@ -263,6 +289,7 @@ def delta(network,
             list of component IDs to exclude, no impact if include is set
         Nc: int|None
             number of components, needs to be specified if used if network doesn't have the function get_num_components
+
     Returns
     -------
         Delta matrix
