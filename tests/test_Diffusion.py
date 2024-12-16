@@ -1,18 +1,11 @@
-import sys
-from pathlib import Path
-parent_dir = Path(__file__).parent.parent
-sys.path.append(str(parent_dir))
-
-import openpnm as op                                      # noqa: E402
-import scipy.linalg                                       # noqa: E402
-import scipy.sparse                                       # noqa: E402
-import pnm_mctools.models.const_spheres_and_cylinders as geo_model    # noqa: E402
 import numpy as np                                        # noqa: E402
 import scipy                                              # noqa: E402
 import math                                               # noqa: E402
-from pnm_mctools.ToolSet import MulticomponentTools                   # noqa: E402
-import pnm_mctools.Operators as ops                                   # noqa: E402
-import pnm_mctools.BoundaryConditions as bc                           # noqa: E402
+import openpnm as op                                      # noqa: E402
+from pnm_mctools.models import const_spheres_and_cylinders as geo_model    # noqa: E402
+from pnm_mctools import ToolSet as ts                     # noqa: E402
+import pnm_mctools.Operators as ops                       # noqa: E402
+import pnm_mctools.BoundaryConditions as bc               # noqa: E402
 
 
 def test_Diffusion(output: bool = False):
@@ -32,7 +25,7 @@ def test_Diffusion(output: bool = False):
 
     c = np.zeros((network.Np, Nc))
 
-    mt = MulticomponentTools(network=network, num_components=Nc)
+    mt = ts.MulticomponentTools(network=network, num_components=Nc)
     bc.set(mt=mt, id=0, label='left', bc={'prescribed': 1.})
     bc.set(mt=mt, id=1, label='right', bc={'prescribed': 1.})
 

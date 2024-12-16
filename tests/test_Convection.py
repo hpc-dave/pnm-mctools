@@ -1,10 +1,8 @@
-import openpnm as op                                                  # noqa: E402
-import scipy.linalg                                                   # noqa: E402
-import scipy.sparse                                                   # noqa: E402
-import pnm_mctools.models.const_spheres_and_cylinders as geo_model    # noqa: E402
 import numpy as np                                                    # noqa: E402
 import scipy                                                          # noqa: E402
-from pnm_mctools.ToolSet import MulticomponentTools                   # noqa: E402
+import openpnm as op                                                  # noqa: E402
+from pnm_mctools.models import const_spheres_and_cylinders as geo_model    # noqa: E402
+from pnm_mctools import ToolSet as ts                                 # noqa: E402
 import pnm_mctools.Operators as ops                                   # noqa: E402
 import pnm_mctools.Interpolation as ip                                # noqa: E402
 
@@ -30,7 +28,7 @@ def test_convection(output: bool = False):
     c[1, 0] = 1.
     c[-2, 1] = 1.
 
-    mt = MulticomponentTools(network=network, num_components=Nc)
+    mt = ts.MulticomponentTools(network=network, num_components=Nc)
     x = np.ndarray.flatten(c).reshape((c.size, 1))
     dx = np.zeros_like(x)
 

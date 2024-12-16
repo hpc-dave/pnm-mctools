@@ -161,6 +161,7 @@ def _apply_numerical_differentiation_locally_constrained(c: np.ndarray,
     defect_func: Callable
         function which computes the defect with signature array_like(array_like, int),
         where the second argument refers to the manipulated row
+        **IMPORTANT** The defect MUST NOT have a dependency along the first axis!
     dc: float
         base value for differentiation interval
     exclude: int | list[int]
@@ -172,7 +173,8 @@ def _apply_numerical_differentiation_locally_constrained(c: np.ndarray,
 
     Notes
     -----
-    Here, only the Jacobian with the local 'blocks' is computed
+    Here, only the Jacobian with the local 'blocks' are computed.
+    **IMPORTANT** The defect MUST NOT have a dependency along the first axis!
     """
     Nc = c.shape[1]
     single_param = len(signature(defect_func)._parameters) == 1
