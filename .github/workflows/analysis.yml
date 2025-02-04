@@ -22,7 +22,7 @@ jobs:
 
       - name: test flake 8
         run: |
-          flake8 --output-file=test/linter_errors.txt ./src/
+          flake8 --output-file=tests/linter_errors.txt ./src/
           flake8_junit tests/linter_errors.txt tests/linter_errors.xml
 
 
@@ -31,7 +31,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linter
-          path: test/linter_errors.*
+          path: tests/linter_errors.*
 
   publish-analysis:
     # For details checkout https://github.com/marketplace/actions/publish-test-results
