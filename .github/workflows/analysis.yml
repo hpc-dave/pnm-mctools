@@ -23,7 +23,7 @@ jobs:
       - name: test flake 8
         run: |
           flake8 --output-file=test/linter_errors.txt ./src/
-          flake8_junit test/linter_errors.txt test/linter_errors.xml
+          flake8_junit tests/linter_errors.txt tests/linter_errors.xml
 
 
       - name: Archive Reports
