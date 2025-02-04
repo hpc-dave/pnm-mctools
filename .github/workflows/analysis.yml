@@ -21,10 +21,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: test flake 8
-        run: |
-          flake8 --output-file=tests/linter_errors.txt ./src/
-          flake8_junit tests/linter_errors.txt tests/linter_errors.xml
+        run: flake8 --output-file=tests/linter_errors.txt ./src/
 
+      - name: convert to junit
+        run: flake8_junit tests/linter_errors.txt tests/linter_errors.xml
 
       - name: Archive Reports
         if: always()
