@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from . import ToolSet as ts
+from pnm_mctools import ToolSet as ts
 
 
 def _default_mapping(type: str) -> list:
@@ -161,7 +161,7 @@ class ConductanceFathiganjehlou:
     """
     def __init__(self,
                  network=None,
-                 C_0: float = 26., E_0: float = 27., gamma: float = 1.,
+                 C_0: float = 27., E_0: float = 26., gamma: float = 1.,
                  F_hydro: float = 1., m: float = 1., n: float = 1.,
                  throat_conn='throat.conns',
                  throat_radii='throat.calibration_radius',

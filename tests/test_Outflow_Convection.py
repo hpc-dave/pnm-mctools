@@ -1,19 +1,14 @@
-import sys
-from pathlib import Path
-parent_dir = Path(__file__).parent.parent
-sys.path.append(str(parent_dir))
-
 import openpnm as op                                       # noqa: E402
 import scipy, scipy.linalg, scipy.sparse                   # noqa: E401, E402
-import models.const_spheres_and_cylinders as geo_model    # noqa: E402
+import pnm_mctools.models.const_spheres_and_cylinders as geo_model    # noqa: E402
 import numpy as np                                         # noqa: E402
-from ToolSet import MulticomponentTools                    # noqa: E402
-import Operators as ops                                    # noqa: E402
-import Interpolation as ip                                 # noqa: E402
-import BoundaryConditions as bc                            # noqa: E402
+from pnm_mctools.ToolSet import MulticomponentTools        # noqa: E402
+import pnm_mctools.Operators as ops                        # noqa: E402
+import pnm_mctools.Interpolation as ip                     # noqa: E402
+import pnm_mctools.BoundaryConditions as bc                # noqa: E402
 
 
-def run(output: bool = True):
+def test_Outflow_convection(output: bool = True):
     Nx = 100
     Ny = 1
     Nz = 1
@@ -72,7 +67,6 @@ def run(output: bool = True):
 
     inflow = np.zeros((2))
     outflow = np.zeros((2))
-    success = True
     for t in tsteps:
         x_old = x.copy()
         pos += 1
@@ -98,14 +92,8 @@ def run(output: bool = True):
         inflow += flux_in * dt
         outflow += flux_out * dt
         mass_err = (inflow-outflow) / (mass_tot - mass_init) - 1
-        success &= np.max(np.abs(mass_err)) < 1e-13
+        assert np.max(np.abs(mass_err)) < 1e-13
         if output:
             print(f'{t}/{len(tsteps)} - {time:1.2}: {last_iter + 1} it -\
                 G [{G_norm:1.2e}] mass [{mass_err[0]:1.2e} {mass_err[1]:1.2e}]')
         time += dt
-
-    return success
-
-
-if __name__ == "__main__":
-    run()

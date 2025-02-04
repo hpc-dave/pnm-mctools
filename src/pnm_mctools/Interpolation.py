@@ -1,7 +1,7 @@
 from typing import List
 import numpy as np
 import scipy
-from . import Operators as ops
+from pnm_mctools import Operators as ops
 
 
 def upwind(network,

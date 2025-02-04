@@ -1,19 +1,14 @@
-import sys
-from pathlib import Path
-parent_dir = Path(__file__).parent.parent
-sys.path.append(str(parent_dir))
-
-import openpnm as op                                       # noqa: E402
-import scipy, scipy.linalg, scipy.sparse                   # noqa: E401, E402
-import models.const_spheres_and_cylinders as geo_model     # noqa: E402
-import numpy as np                                         # noqa: E402
-from ToolSet import MulticomponentTools                    # noqa: E402
-import Operators as ops                                    # noqa: E402
-import Interpolation as ip                                 # noqa: E402
-import BoundaryConditions as bc                            # noqa: E402
+import openpnm as op                                                   # noqa: E402
+import scipy, scipy.linalg, scipy.sparse                               # noqa: E401, E402
+import pnm_mctools.models.const_spheres_and_cylinders as geo_model     # noqa: E402
+import numpy as np                                                     # noqa: E402
+from pnm_mctools.ToolSet import MulticomponentTools                    # noqa: E402
+import pnm_mctools.Operators as ops                                    # noqa: E402
+import pnm_mctools.Interpolation as ip                                 # noqa: E402
+import pnm_mctools.BoundaryConditions as bc                            # noqa: E402
 
 
-def run(output: bool = True):
+def test_DiluteFlow(output: bool = False):
     Nx = 100
     Ny = 1
     Nz = 1
@@ -68,7 +63,7 @@ def run(output: bool = True):
     J = ddt - sum(D, A_flux, grad) + sum(fluid_flux, c_up)
 
     J = bc.apply(mt, A=J)
-    success = True
+
     for t in tsteps:
         x_old = x.copy()
         pos += 1
@@ -90,10 +85,3 @@ def run(output: bool = True):
         if output:
             print(f'{t}/{len(tsteps)} - {time}: {last_iter + 1} it [{G_norm}]')
         time += dt
-
-    print('DiluteFlow does not have a success criteria yet')
-    return success
-
-
-if __name__ == '__main__':
-    run()

@@ -1,38 +1,34 @@
 from typing import List, Tuple, Any
 import numpy as np
 import scipy
-try:
-    import ToolSet as ts
-except ImportError:
-    from . import ToolSet as ts
-
-
-def _compute_flux_matrix(Nt: int, Nc: int, *args):
-    r"""
-    computes matrix of size [Np*Nc, Nt*Nc], where all arguments are multiplied with the last argument
-
-    Parameters
-    ----------
-    Factors to multiply with the final argument, where the final argument is a [Nt*Nc, Np*Nc] matrix
-
-    Returns
-    -------
-    [Np*Nc, Nt*Nc] sized matrix
-    """
-    fluxes = args[-1].copy()
-    for i in range(len(args)-1):
-        arg = args[i]
-        if isinstance(arg, list) and len(arg) == Nc:
-            fluxes = fluxes.multiply(np.tile(np.asarray(arg), Nt))
-        elif isinstance(arg, np.ndarray):
-            _arg = np.tile(arg.reshape(-1, 1), reps=(1, Nc)) if arg.size == Nt else arg
-            fluxes = fluxes.multiply(_arg.reshape(-1, 1))
-        else:
-            fluxes = fluxes.multiply(args[i])
-    return fluxes
+from pnm_mctools import ToolSet as ts
 
 
 def unpack_network(network, Nc, include, exclude) -> Tuple[Any, int, int, int, Any]:
+    r"""
+    A helper across the various functions below
+
+    Parameters
+    ----------
+        network
+            An instance which will be evaluated
+        Nc
+            number of components
+        include
+            an array of components to include
+        exclude
+            an array of components to exclude
+
+    Returns
+    -------
+        a tuple with:
+            - an OpenPNM like network
+            - number of pores
+            - number of throats
+            - number of components
+            - a list of included components
+
+    """
     if isinstance(network, ts.MulticomponentTools):
         net = network.get_network()
         if Nc is None:
@@ -47,77 +43,7 @@ def unpack_network(network, Nc, include, exclude) -> Tuple[Any, int, int, int, A
     return net, Np, Nt, Nc, include
 
 
-class SumObject:
-    r"""
-    A helper object, which acts as a matrix, but also provides convenient overloads
-    """
-    def __init__(self, matrix, Nc: int, Nt: int):
-        r"""
-        Initializes the object
-
-        Parameters
-        ----------
-        matrix:
-            A matrix for computing a sum/divergence matrix
-        Nc: int
-            number of components
-        Nt:
-            number of throats
-        """
-        self.matrix = matrix
-        self.Nt = Nt
-        self.Nc = Nc
-
-    def __mul__(self, other):
-        r"""
-        multiplication operator
-
-        Parameters
-        ----------
-        other:
-            vector, matrix or scalar to multiply with the internal matrix
-
-        Returns
-        -------
-        quadratic matrix or vector, depending on the input type
-        """
-        return self.matrix * other
-
-    def __matmul__(self, other):
-        r"""
-        matrix multiplication operator
-
-        Parameters
-        ----------
-        other:
-            vector, matrix or scalar to multiply with the internal matrix
-
-        Returns
-        -------
-        quadratic matrix or vector, depending on the input type
-        """
-        return self.matrix @ other
-
-    def __call__(self, *args):
-        r"""
-        calling operator, for convenience to provide high readability of the code
-
-        Parameters
-        ----------
-        args:
-            multiple arguments, which are multiplied with the last instance
-
-        Returns
-        -------
-        quadratic matrix or vector, depending on the input type
-        """
-        return self.matrix * _compute_flux_matrix(self.Nt, self.Nc, *args)
-
-    def multiply(self, *args, **kwargs):
-        return self.matrix.multiply(*args, **kwargs)
-
-
-def ddt(c: np.ndarray | None = None,
+def ddt(c: np.ndarray | Any | None = None,
         network=None,
         dt: float = 1.,
         weight: np.ndarray | str = 'pore.volume',
@@ -129,32 +55,35 @@ def ddt(c: np.ndarray | None = None,
 
     Parameters
     ----------
-    c: np.ndarray|ts.MulticomponentTools
-        array with species or tool with relevant information
-    dt: float
-        discretized time step size
-    weight: np.ndarray|str
-        a weight which can be applied to the time derivative, usually that should be
-        the volume of the computational cell, the string is only allowed if an instance of
-        MulticomponentTools is provided
-    include: int|list[int]|None
-        an ID or list of IDs which should be included in the matrix, if 'None' is provided,'
-        all values will be used
-    exclude: int|list[int]|None
-        inverse of include, without effect if include is specified
+        c: np.ndarray | Any | None
+            array with species or tool with relevant information
+        network
+            openpnm network or MulticomponentTools
+        dt: float
+            discretized time step size
+        weight: np.ndarray|str
+            a weight which can be applied to the time derivative, usually that should be
+            the volume of the computational cell, the string is only allowed if an instance of
+            MulticomponentTools is provided
+        include: int|list[int]|None
+            an ID or list of IDs which should be included in the matrix, if 'None' is provided,'
+            all values will be used
+        exclude: int|list[int]|None
+            inverse of include, without effect if include is specified
+
     Returns
     -------
-    Matrix in CSR format
+        Matrix in CSR format
 
     Notes
     -----
-    By default, a finite volume discretization is assumed, therefore the standard form of
-    the partial derivative is given by
+        By default, a finite volume discretization is assumed, therefore the standard form of
+        the partial derivative is given by
 
-    \iiint \frac{\partial}{\partial t} \mathrm{d}V \approx \frac{\Delta V}{\Delta t}
+        \iiint \frac{\partial}{\partial t} \mathrm{d}V \approx \frac{\Delta V}{\Delta t}
 
-    Note that here the integrated variable is ommitted in the description, as it will be provided
-    either by the solution vector for implicit treatment and by the field for explicit components
+        Note that here the integrated variable is ommitted in the description, as it will be provided
+        either by the solution vector for implicit treatment and by the field for explicit components
     """
 
     if isinstance(c, np.ndarray):
@@ -187,7 +116,7 @@ def ddt(c: np.ndarray | None = None,
         if dVdt.size == Np:
             dVdt = np.tile(A=dVdt, reps=Nc)
         if include is not None:
-            mask = np.asarray([n in include for n in range(Np)], dtype=bool).reshape((1, -1))
+            mask = np.asarray([n in include for n in range(Nc)], dtype=bool).reshape((1, -1))
             mask = np.tile(A=mask, reps=(Np, 1))
             dVdt[~mask] = 0.
     ddt = scipy.sparse.spdiags(data=[dVdt.ravel()], diags=[0])
@@ -197,7 +126,7 @@ def ddt(c: np.ndarray | None = None,
 def sum(network,
         include: int | List[int] | None = None,
         exclude: int | List[int] | None = None,
-        Nc: int | None = None) -> SumObject:
+        Nc: int | None = None) -> ts.SumObject:
     r"""
     Constructs summation matrix
 
@@ -263,7 +192,7 @@ def sum(network,
     # converting to CSR format for improved computation
     sum_mat = scipy.sparse.csr_matrix(sum_mat)
 
-    return SumObject(matrix=sum_mat, Nc=Nc, Nt=Nt)
+    return ts.SumObject(matrix=sum_mat, Nc=Nc, Nt=Nt)
 
 
 def gradient(network,
@@ -288,7 +217,8 @@ def gradient(network,
         exlude: int|[int]|None
             inverse of include, without effect if include is specified
         Nc: int|None
-            number of components, needs to be specified if used if network doesn't have the function get_num_components
+            number of components, needs to be specified if used if network doesn't have the function get_num_component
+
     Returns
     -------
         a gradient matrix in CSR-format
@@ -359,6 +289,7 @@ def delta(network,
             list of component IDs to exclude, no impact if include is set
         Nc: int|None
             number of components, needs to be specified if used if network doesn't have the function get_num_components
+
     Returns
     -------
         Delta matrix

@@ -1,21 +1,14 @@
-import sys
-from pathlib import Path
-parent_dir = Path(__file__).parent.parent
-sys.path.append(str(parent_dir))
-
-import openpnm as op                                      # noqa: E402
-import scipy.linalg                                       # noqa: E402
-import scipy.sparse                                       # noqa: E402
-import models.const_spheres_and_cylinders as geo_model    # noqa: E402
 import numpy as np                                        # noqa: E402
 import scipy                                              # noqa: E402
 import math                                               # noqa: E402
-from ToolSet import MulticomponentTools                   # noqa: E402
-import Operators as ops                                   # noqa: E402
-import BoundaryConditions as bc                           # noqa: E402
+import openpnm as op                                      # noqa: E402
+from pnm_mctools.models import const_spheres_and_cylinders as geo_model    # noqa: E402
+from pnm_mctools import ToolSet as ts                     # noqa: E402
+import pnm_mctools.Operators as ops                       # noqa: E402
+import pnm_mctools.BoundaryConditions as bc               # noqa: E402
 
 
-def run(output: bool = True):
+def test_Diffusion(output: bool = False):
     Nx = 100
     Ny = 1
     Nz = 1
@@ -32,7 +25,7 @@ def run(output: bool = True):
 
     c = np.zeros((network.Np, Nc))
 
-    mt = MulticomponentTools(network=network, num_components=Nc)
+    mt = ts.MulticomponentTools(network=network, num_components=Nc)
     bc.set(mt=mt, id=0, label='left', bc={'prescribed': 1.})
     bc.set(mt=mt, id=1, label='right', bc={'prescribed': 1.})
 
@@ -71,7 +64,6 @@ def run(output: bool = True):
     ana_sol = np.zeros_like(c)
 
     J = bc.apply(network=mt, A=J, type='Jacobian')
-    success = True
     for t in tsteps:
         x_old = x.copy()
         pos += 1
@@ -95,15 +87,9 @@ def run(output: bool = True):
         ana_sol[:, 1] = np.flip(ana_sol[:, 0])
         err = ana_sol - c
         if pos > 10:
-            success &= np.max(np.abs(err[:, 0])) < 1e-2
-            success &= np.max(np.abs(err[:, 1])) < 1e-2
+            assert np.max(np.abs(err[:, 0])) < 1e-2
+            assert np.max(np.abs(err[:, 1])) < 1e-2
         if output:
             print(f'{t}/{len(tsteps)} - {time:1.2f}: {last_iter + 1} it [{G_norm:1.2e}]\
                 err [{np.max(np.abs(err[:, 0])):1.2e} {np.max(np.abs(err[:, 1])):1.2e}]')
         time += dt
-
-    return success
-
-
-if __name__ == '__main__':
-    run()

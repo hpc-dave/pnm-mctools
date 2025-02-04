@@ -201,7 +201,12 @@ def network_to_vtk(network, filename: str, additional_data: dict = None, fill_na
         raise ValueError("no filename provided!")
     filename = _parse_filename(filename=filename, ext="vtp")
 
-    am = network_to_dict(network=network,
+    if hasattr(network, 'get_network'):
+        net = network.get_network()
+    else:
+        net = network
+
+    am = network_to_dict(network=net,
                          additional_data=additional_data,
                          categorize_by=["object", "data"])
     am = pd.json_normalize(am, sep='.').to_dict(orient='records')[0]
@@ -209,8 +214,8 @@ def network_to_vtk(network, filename: str, additional_data: dict = None, fill_na
         am[k.replace('.', ' | ')] = am.pop(k)
     key_list = list(sorted(am.keys()))
 
-    points = network["pore.coords"]
-    pairs = network["throat.conns"]
+    points = net["pore.coords"]
+    pairs = net["throat.conns"]
     num_points = np.shape(points)[0]
     num_throats = np.shape(pairs)[0]
 

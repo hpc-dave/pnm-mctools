@@ -1,0 +1,23 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.10
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Test Install
+      run: python -m pip install .
