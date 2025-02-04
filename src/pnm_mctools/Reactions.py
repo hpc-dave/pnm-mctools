@@ -22,7 +22,7 @@ def LinearReaction(network,
     component: int | None
         affected component, can be None if the educt parameter is provided
     educt: int | None
-       component ID which serves as educt, this component will be consumed by multiplication of the 
+       component ID which serves as educt, this component will be consumed by multiplication of the
         reaction rate coefficient with -1! Can be None if the component parameter is provided
     product: list
         list of component IDs which serve as products, if an integer is provided it will be converted into a list
