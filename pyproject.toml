@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "pnm_mctools"
 dynamic = ["version"]
 dependencies = [
-    "numpy",
+    "numpy==2.0.0",
     "openpnm",
     "numpy-stl",
     "scipy",
