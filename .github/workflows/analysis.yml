@@ -24,6 +24,7 @@ jobs:
         run: flake8 --output-file=tests/linter_errors.txt ./src/
 
       - name: convert to junit
+        if: always()
         run: flake8_junit tests/linter_errors.txt tests/linter_errors.xml
 
       - name: Archive Reports
