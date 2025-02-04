@@ -1,5 +1,12 @@
 [run]
 omit = tests/*
 
+[report]
+fail_under = 80
+omit = tests/*
+
 [html]
-directory = coverage_html_report
+directory = tests/coverage_html
+
+[xml]
+output = tests/coverage.xml

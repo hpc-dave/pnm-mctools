@@ -4,14 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pnm_mctools"
-version = "0.6.0"
+dynamic = ["version"]
 dependencies = [
     "numpy",
     "openpnm",
     "numpy-stl",
     "scipy",
     "pypardiso",
-    "pytest"
+    "pytest",
+    "pytest-cov"
 ]
 requires-python = ">= 3.9"
 authors = [
@@ -30,6 +31,9 @@ classifiers = [
     "Programming Language :: Python",
     "License :: OSI Approved :: MIT License"
 ]
+
+[tool.setuptools_scm]
+write_to = "src/pnm_mctools/_version.py"
 
 [project.urls]
 Homepage = "https://github.com/hpc-dave/pnm-mctools"
