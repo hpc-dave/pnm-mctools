@@ -114,7 +114,7 @@ def hydraulic_conductance_fathiganjehlou(conn, pore_radii, throat_radii, conduit
     rho = throat_density.reshape((-1, 1))
     l_c = conduit_length.reshape((-1, 1))
     _rate = np.zeros(r_ij.shape, dtype=float) if rate is None else rate.copy()
-    _rate.reshape(r_ij.shape)
+    _rate = _rate.reshape(r_ij.shape)
 
     # flow has to be from pore i to pore j, so we have to reorder some
     # values in the case of reverse flow
@@ -136,6 +136,7 @@ def hydraulic_conductance_fathiganjehlou(conn, pore_radii, throat_radii, conduit
     # compute coefficients
     r_4 = r_ij**4
     Re_ij = 2 * rho * _rate/(math.pi * mu * r_ij)
+    Re_ij = np.max((Re_ij, np.full_like(Re_ij, fill_value=1e-50)), axis=0)
     A_ij = 8 * mu * l_c / (math.pi * r_4)
     C_ij = rho/(2 * math.pi**2 * r_4) * _rate * ((C_0/Re_ij)**n + 1./(2**n) * (1 - (r_ij/r_i)**2)**n)
     E_ij = rho/(2 * math.pi**2 * r_4) * _rate * ((E_0/Re_ij)**m + (1 - (r_ij/r_j)**2)**(2*m))
