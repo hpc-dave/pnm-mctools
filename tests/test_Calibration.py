@@ -1,6 +1,7 @@
 from pnm_mctools import Calibration as CB
 from math import pi
 import numpy as np
+import openpnm as op
 
 
 def test_calibration_fathiganjehlou():
@@ -82,7 +83,45 @@ def test_calibration_fathiganjehlou():
 
     assert np.all((G-g_h) < 1e-16)
 
+def test_calibration_fathiganjehlou_wrapper():
+    # define basic parameters
+    Np = 10
+    Nt = 9
+
+    # radii
+    pore_radii = np.arange(1, Np+1, dtype=float)
+    throat_radii = np.arange(0.01, (Nt+1)*0.01, 0.01, dtype=float)
+    # connectivity array
+    conn = np.hstack([np.arange(Nt).reshape((-1, 1)), np.arange(1, Np).reshape((-1, 1))])
+    # other properties
+    conduit_length = np.full_like(throat_radii, fill_value=0.11)
+    throat_density = np.full_like(throat_radii, fill_value=0.22)
+    throat_viscosity = np.full_like(throat_radii, fill_value=0.33)
+    rate = np.full_like(conduit_length, fill_value=1.)
+
+    coord = np.cumsum(np.hstack([[0.], conduit_length])).reshape((-1, 1))
+    coord = np.hstack([coord, np.zeros_like(coord), np.zeros_like(coord)])
+
+    # calibration values
+    C_0 = 27.
+    E_0 = 26.
+    gamma = 1.
+    F = 1.
+    m = 0.
+    n = 0.
+
+    network = op.network.Network(conns=conn, coords=coord)
+    network['throat.calibration_radius'] = throat_radii
+    network['throat.calibration_length'] = conduit_length
+    network['pore.calibration_radius'] = pore_radii
+    cond = CB.ConductanceFathiganjehlou(network=network, C_0=C_0, E_0=E_0, gamma=gamma, F_hydro=F, m=m, n=n)
+
+    g_h = cond.Hydraulic(viscosity=throat_viscosity, density=np.zeros_like(throat_density), rate=rate)
+
+    A = ((pi * (throat_radii/F)**4)/(8. * throat_viscosity * rate * conduit_length)).reshape((-1, 1))
+    assert np.all((A-g_h) < 1e-16)
+
 
 if __name__ == "__main__":
-    test_calibration_fathiganjehlou()
+    test_calibration_fathiganjehlou_wrapper()
     print('finished')
