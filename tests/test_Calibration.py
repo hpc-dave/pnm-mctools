@@ -83,6 +83,7 @@ def test_calibration_fathiganjehlou():
 
     assert np.all((G-g_h) < 1e-16)
 
+
 def test_calibration_fathiganjehlou_wrapper():
     # define basic parameters
     Np = 10

@@ -1,3 +1,4 @@
+from math import pi
 import numpy as np
 from pnm_mctools.ToolSet import _compute_flux_matrix, MulticomponentTools
 from pnm_mctools import Operators as ops
@@ -35,6 +36,49 @@ def compute_fluxes(mc: MulticomponentTools, *args):
         alias for compute_rates
     """
     return compute_rates(mc, *args)
+
+
+def compute_throat_peclet_number(c,
+                                 Q: np.ndarray,
+                                 Dbin: np.ndarray | float,
+                                 throat_radius: str | np.ndarray) -> np.ndarray:
+    if hasattr(c, "get_network"):
+        network = c.get_network()
+    else:
+        network = c
+
+    Nt = network.num_throats()
+
+    if isinstance(throat_radius, str):
+        radius = network[throat_radius].reshape((-1, 1))
+    elif isinstance(throat_radius, np.ndarray):
+        if throat_radius.shape[0] != network.num_throats():
+            raise ValueError(f'The number of throat radii is wrong! Expected: {Nt}, Found: {throat_radius.shape[0]}')  # noqa: E501 # pragma: no cover
+        radius = throat_radius.reshape(-1, 1)
+    else:
+        raise TypeError('Unknown type detected')    # pragma: no cover
+
+    if Q.size != radius.size:
+        raise ValueError('inconsistent lengths of rate and radius array!')  # pragma: no cover
+
+    rate = Q.reshape((Nt, 1))
+
+    if isinstance(Dbin, float):
+        Db = np.full_like(radius, fill_value=Dbin, dtype=float).reshape((Nt, -1))
+    elif isinstance(Dbin, np.ndarray):
+        if Dbin.ndim > 1 and Dbin[1] > 1:
+            raise ValueError('Right now this function only supports a single species!')     # pragma: no cover
+        if Dbin.shape[0] != Nt:
+            raise ValueError(f'The number of binary diffusion coefficients is wrong! Expected: {Nt}, Found: {Dbin.shape[0]}')  # noqa: E501 # pragma: no cover
+        Db = Dbin.reshape((Nt, -1))
+    else:
+        raise TypeError('Unknown type detected')    # pragma: no cover
+
+    Pe_loc = np.zeros_like(Db, dtype=float)
+    mask = Db != 0.
+    Pe_loc[mask] = rate[mask]/(radius[mask]*pi*Db[mask, ...])
+
+    return Pe_loc
 
 
 def compute_pore_residence_time(Q: np.ndarray,
@@ -83,7 +127,7 @@ def compute_pore_residence_time(Q: np.ndarray,
 
     if A_dir is None:
         if network is None:
-            raise ValueError('neither `A_dir` nor `network` are defined, cannot continue')
+            raise ValueError('neither `A_dir` nor `network` are defined, cannot continue')  # pragma: no cover
         A_dir = ops.sum(network=network, Nc=1)
 
     if isinstance(Vp, str):
@@ -94,10 +138,10 @@ def compute_pore_residence_time(Q: np.ndarray,
 
     approach_options = ['inflow', 'outflow', 'min']
     if approach not in approach_options:
-        raise ValueError(f'Cannot compute residence time, unknown approach: {approach}! Available options are {approach_options}')  # noqa: E501
+        raise ValueError(f'Cannot compute residence time, unknown approach: {approach}! Available options are {approach_options}')  # noqa: E501  # pragma: no cover
 
     Q_dir = A_dir.multiply(Q.reshape((-1)))
-    tau_in = np.zeros_like(Vp)  # dummy for inflow residence time
+    tau_in = np.full((Vp.shape[0], 1), fill_value=np.inf, dtype=float)  # dummy for inflow residence time
     tau_out = tau_in.copy()     # dummy for outflow residence time
     if (approach == 'inflow') or (approach == 'min'):
         Q_in = Q_dir.multiply(Q_dir < 0.)  # matrix solely with negative flow rates
