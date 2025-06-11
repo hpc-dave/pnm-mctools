@@ -234,12 +234,8 @@ Adsorption may be implemented in a variety of ways and none being fully superior
 - `Linear`:     $`y = y_{max} K \cdot c`$
 - `Langmuir`:   $`y = y_{max} \frac{K \cdot c}{1+K \cdot c}`$
 - `Freundlich`: $`y = y_{max} K c^{\frac{1}{n}}`$
-with the surface load $`y`$ in $`\mathrm{mol/m^2}`$. Additionally, a function is provided for computing the Jacobian, where adsorption is approximated in terms of a pseudo-reaction term, allowing for the separate storage of the surface load.
-There the pseudo-reaction rate is defined by:
-```math
-r_{ad} = k_r * (y_{eq} - y)~\mathrm{in mol/(m^2 s)}
-```
-with a pseudo reaction rate constant $`k_r`$. 
+with the surface load $`y`$ in $`\mathrm{mol/m^2}`$.
+In the case of linear adsorption of a single component, an optimized function is provided for computing the Jacobian and the defect. In all other cases, the Jacobian is determined via numerical differentiation of the defect. The furhter details, have a look at the `Adsorption` module.
 
 ## IO
 The IO functionality is independent of the Toolset and contained in the IO.py file and can be imported as:
