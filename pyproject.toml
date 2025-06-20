@@ -4,16 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pnm_mctools"
-dynamic = ["version"]
-dependencies = [
-    "numpy==2.0.0",
-    "openpnm",
-    "numpy-stl",
-    "scipy",
-    "pypardiso",
-    "pytest",
-    "pytest-cov"
-]
+dynamic = ["version", "dependencies"]
+
 requires-python = ">= 3.9"
 authors = [
     {name = "David Rieder", email = "d.r.rieder@tue.nl"},
@@ -31,6 +23,9 @@ classifiers = [
     "Programming Language :: Python",
     "License :: OSI Approved :: MIT License"
 ]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"]}
 
 [tool.setuptools_scm]
 write_to = "src/pnm_mctools/_version.py"

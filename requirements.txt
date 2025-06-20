@@ -1,0 +1,7 @@
+numpy==2.0.0
+openpnm
+numpy-stl
+scipy
+pypardiso
+pytest
+pytest-cov
