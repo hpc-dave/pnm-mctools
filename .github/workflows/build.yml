@@ -30,7 +30,7 @@ jobs:
     - uses: actions/checkout@v4
     - name: add_forge
       run: conda config --add channels conda-forge
-    - name: install_gcc
-      run: conda install gcc
+    - name: install_gxx
+      run: conda install gxx
     - name: Test Install
       run: python -m pip install .
