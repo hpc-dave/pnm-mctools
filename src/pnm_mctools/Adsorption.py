@@ -175,6 +175,8 @@ def single_linear(c, c_old,
         c_id = range(Nc)
     elif isinstance(component_id, int):
         c_id = [component_id]
+    else:
+        c_id = component_id
 
     # here, the last dimension is used as a convenient way to store current and old step
     # meaning the [:,:,0] is used for the current and [:,:,1] for the old step
@@ -286,6 +288,8 @@ def multi_component(c, c_old,
         c_id = range(Nc)
     elif isinstance(component_id, int):
         c_id = [component_id]
+    else:
+        c_id = component_id
 
     theta_old = theta_func(c_old[:, c_id])
 

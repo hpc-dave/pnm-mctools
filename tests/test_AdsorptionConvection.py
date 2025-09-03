@@ -81,6 +81,7 @@ def test_convection_linear(output: bool = True):
     J_conv = sum(A_conv, v, c_up)
 
     pulse_out = np.zeros_like(tsteps, dtype=float)
+    last_iter = np.inf
     for n in range(len(tsteps)):
         x_old = x.copy()
         J_ads, G_ads = ads.single_linear(c=x.reshape(c.shape), c_old=x_old.reshape(c.shape),
@@ -183,6 +184,7 @@ def test_convection_Langmuir(output: bool = True):
     J_conv = sum(A_conv, v, c_up)
 
     pulse_out = np.zeros_like(tsteps, dtype=float)
+    last_iter = np.inf
     for n in range(len(tsteps)):
         x_old = x.copy()
         J_ads, G_ads = Adsorption(c_f=x.reshape(c.shape), c_f_old=x_old.reshape(c.shape))

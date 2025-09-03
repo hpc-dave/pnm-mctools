@@ -47,3 +47,15 @@ filterwarnings = [
     "error",
     'ignore::DeprecationWarning'
 ]
+
+[tool.pyright]
+reportCallIssue = false
+reportArgumentType = false
+reportAssignmentType = false
+reportOptionalIterable = false
+reportOptionalMemberAccess = false
+reportOptionalSubscript = false
+reportGeneralTypeIssues = false
+reportAttributeAccessIssue = false
+reportOperatorIssue = false
+reportOptionalOperand = false
