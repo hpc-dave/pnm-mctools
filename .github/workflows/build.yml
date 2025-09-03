@@ -11,7 +11,7 @@ on:
       - dev
 
 jobs:
-  install:
+  install_pip:
     runs-on: ubuntu-latest
     container:
       image: python:3.10
@@ -21,3 +21,13 @@ jobs:
 
     - name: Test Install
       run: python -m pip install .
+  install_conda:
+    runs-on: ubuntu-latest
+    container:
+      image: continuumio/miniconda3
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Test Install
+      run: conda install .
