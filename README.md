@@ -11,7 +11,7 @@ For example transient diffusion-advection transport of a scalar species with fir
 ```math
 \int_V \frac{\partial}{\partial t} \phi \mathrm{d}V + \sum_i \vec{n}_i Q_{conv, i} + \sum_i \vec{n}_i Q_{diff, i} = \int_V k_r \phi \mathrm{d}V
 ```
-where the rates $`Q_i`$ are considered directional with direction $`\vec{n}_i`$. A key concept for the discretization of the equations is the orientation of $`\vec{n}_i`$, as it allows convient formulation of a $`\sum`$ (sum) and $`\Delta`$ (delta) operator. As an example, consider the following common computation of steady-state hydrodynamics:
+where the rates $`Q_i`$ are considered directional with direction $`\vec{n}_i`$. A key concept for the discretization of the equations is the use of oriented graphs, here expressed with $`\vec{n}_i`$, as it allows convient formulation of a $`\sum`$ (sum, transpose of the oriented incidence matrix) and $`\Delta`$ (delta, oriented incidence matrix) operator. As an example, consider the following common computation of steady-state hydrodynamics:
 ```math
 \sum_j g \Delta P_{ij} = 0
 ```

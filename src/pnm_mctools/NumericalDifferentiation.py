@@ -26,7 +26,7 @@ def _compute_dc(x_0, dc_value: float):
 
 
 def _apply_numerical_differentiation_lowmem(c, defect_func,
-                                            dc: float = 1e-6,
+                                            dc: np.ndarray,
                                             exclude=None,
                                             axis: int = None,
                                             is_locally_constrained: bool = False):

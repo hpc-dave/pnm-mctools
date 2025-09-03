@@ -339,7 +339,7 @@ def apply(network, bc=None, A=None, x=None, b=None, type='Jacobian'):
         raise ValueError(f'No rhs was provided although {type} was provided as type')
 
     net, Np, _, bc = unpack_info(network=network, bc=bc)
-    num_rows = A.shape[0] if A is not None else b.shape[0]
+    num_rows = A.shape[0] if A is not None else b.shape[0]  # type: ignore
     num_components = int(num_rows/Np)
 
     if (num_rows % Np) != 0:

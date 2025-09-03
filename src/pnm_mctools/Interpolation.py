@@ -5,7 +5,7 @@ from pnm_mctools import Operators as ops
 
 
 def upwind(network,
-           fluxes=None,
+           fluxes: int | float | List[np.ndarray] | np.ndarray = None,
            rates=None,
            include: int | List[int] | None = None,
            exclude: int | List[int] | None = None,
@@ -77,14 +77,14 @@ def upwind(network,
 
         im = np.transpose(net.create_incidence_matrix(fmt='coo'))
 
-        data = np.zeros((im.data.size, num_included), dtype=float)
-        rows = np.zeros((im.data.size, num_included), dtype=int)
-        cols = np.zeros((im.data.size, num_included), dtype=int)
+        data = np.zeros((im.data.size, num_included), dtype=float)  # type: ignore
+        rows = np.zeros((im.data.size, num_included), dtype=int)    # type: ignore
+        cols = np.zeros((im.data.size, num_included), dtype=int)    # type: ignore
 
         pos = 0
         for n in include:
-            rows[:, pos] = im.row * Nc + n
-            cols[:, pos] = im.col * Nc + n
+            rows[:, pos] = im.row * Nc + n    # type: ignore
+            cols[:, pos] = im.col * Nc + n    # type: ignore
             data[:, pos] = im.data
             pos += 1
 

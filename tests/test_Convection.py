@@ -58,10 +58,10 @@ def test_convection(output: bool = False):
 
     # check the implementations
     if scipy.sparse.find(c_up_float_list - c_up_arrays_mult)[0].size > 0:
-        raise ('matrices are inconsistent, check implementation')
+        raise ValueError('matrices are inconsistent, check implementation')
     if scipy.sparse.find(c_up_float - c_up_array_single)[0].size > 0:
         # note that we don't do validation here
-        raise ('matrices are inconsistent, check implementation')
+        raise ValueError('matrices are inconsistent, check implementation')
 
     c_up = c_up_arrays_mult
     div = ops.sum(network=mt)
@@ -72,11 +72,14 @@ def test_convection(output: bool = False):
     mass_init = np.sum(x)
     peakpos_init = (np.argmax(c[:, 0]), np.argmax(c[:, 1]))
 
+    last_iter = 0    # assign value to avoid unbounded error
+    G_norm = np.inf  # assign value to avoid unbounded error
     for t in tsteps:
         x_old = x.copy()
         pos += 1
 
         G = J * x - ddt * x_old
+
         for i in range(max_iter):
             last_iter = i
             dx[:] = scipy.sparse.linalg.spsolve(J, -G).reshape(dx.shape)
