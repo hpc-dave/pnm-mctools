@@ -31,4 +31,4 @@ jobs:
     - name: compress
       run: tar -cvjSf repo.tar.bz2 *
     - name: Test Install
-      run: conda install --offline ./repo.tar.bz2
+      run: conda install --offline ./
