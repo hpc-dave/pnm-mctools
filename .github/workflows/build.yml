@@ -28,7 +28,5 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: compress
-      run: tar -cvjSf repo.tar.bz2 *
     - name: Test Install
-      run: conda install --offline ./
+      run: conda install https://github.com/hpc-dave/pnm-mctools
