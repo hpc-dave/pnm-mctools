@@ -29,6 +29,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: install_gcc
-      run: apt install gcc
+      run: apt-get install build-essential
     - name: Test Install
       run: python -m pip install .
