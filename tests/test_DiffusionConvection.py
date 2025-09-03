@@ -6,9 +6,20 @@ from pnm_mctools.ToolSet import MulticomponentTools                   # noqa: E4
 import pnm_mctools.Operators as ops                                   # noqa: E402
 import pnm_mctools.Interpolation as ip                                # noqa: E402
 import pnm_mctools.BoundaryConditions as bc                           # noqa: E402
+from matplotlib import pyplot as plt                                   # noqa: E402
+try:
+    import pandas as pd                                                  # noqa: E402
+except ImportError:
+    pd = None
 
 
-def test_DiffusionConvection(output: bool = True):
+def analytical_solution(tau, zeta, Pe):
+    f1 = -scipy.special.erfc((Pe * tau - zeta)/(2. * np.sqrt(tau)))
+    f2 = np.exp(Pe * zeta) * scipy.special.erfc((Pe * tau + zeta)/(2. * np.sqrt(tau)))
+    return 0.5 * (f1 + f2 + 2)
+
+
+def test_DiffusionConvection(output: bool = True, file_output: bool = False):
     Nx = 100
     Ny = 1
     Nz = 1
@@ -23,7 +34,8 @@ def test_DiffusionConvection(output: bool = True):
     network.regenerate_models()
 
     c = np.zeros((network.Np, 1))
-    v = 0.1
+    v = 0.001
+    D_bin = 1e-3
 
     mt = MulticomponentTools(network=network)
     bc.set(mt, label='left', bc=1.)
@@ -32,8 +44,8 @@ def test_DiffusionConvection(output: bool = True):
     x = np.ndarray.flatten(c).reshape((c.size, 1))
     dx = np.zeros_like(x)
 
-    dt = 0.01
-    tsteps = range(1, int(1./dt))
+    dt = 0.1
+    tsteps = range(1, int(10./dt))
     pos = 0
     tol = 1e-6
     max_iter = 10
@@ -48,10 +60,14 @@ def test_DiffusionConvection(output: bool = True):
     sum = ops.sum(mt)
     ddt = ops.ddt(mt, dt=dt)
 
-    D = np.zeros((network.Nt, 1), dtype=float) + 1e-3
+    D = np.zeros((network.Nt, 1), dtype=float) + D_bin
     J = ddt - sum(A_flux, D, grad) + sum(A_flux, v, c_up)
 
     J = bc.apply(mt, A=J)
+
+    Pe = v/D_bin
+
+    err = 0
 
     for t in tsteps:
         x_old = x.copy()
@@ -71,8 +87,20 @@ def test_DiffusionConvection(output: bool = True):
         if last_iter == max_iter - 1:
             print(f'WARNING: the maximum iterations ({max_iter}) were reached!')
 
+        zeta = network['pore.coords'][:, 0] - network['pore.coords'][0, 0]
+        sol_ana = analytical_solution(tau=time*D_bin, zeta=zeta, Pe=Pe)
+
+        err = np.sum(np.abs(x - sol_ana))/Nx
+
         if output:
-            print(f'{t}/{len(tsteps)} - {time}: {last_iter + 1} it [{G_norm}]')
+            print(f'{t}/{len(tsteps)} - {time}: {last_iter + 1} it [{G_norm}] error: {err}')
+        if file_output:
+            if pd is None:
+                raise ImportError('pandas is not installed, cannot save output to csv')
+            df = op.io.network_to_pandas(network)
+            df = pd.concat([*df.values(), pd.DataFrame({'c_num': x.reshape(-1), 'c_ana': sol_ana.reshape(-1)})], axis=1)
+            df.to_csv(f'output_DiffusionConvection_{t}.csv')
         time += dt
 
+    assert err < 20., f'Error is too high: {err}, maximum allowed is 20'
     print('DiffusionConvection test does not have a success criteria yet!')
