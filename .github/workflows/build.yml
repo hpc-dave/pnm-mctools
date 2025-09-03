@@ -30,4 +30,4 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Test Install
-      run: conda install .
+      run: conda install --offline .
