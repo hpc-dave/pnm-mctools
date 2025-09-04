@@ -54,6 +54,9 @@ conda install gxx
 python -m pip install git+https://github.com/hpc-dave/pnm-mctools.git
 ```
 
+## Examples
+Right now, there are no dedicated examples available in the repository. For a starter, have a look at the test-folder to get practical, working examples!
+
 ## The toolset
 The very first step to access the functionality consists by importing the `MulticomponentTools` and creating an instance:
 ```python
