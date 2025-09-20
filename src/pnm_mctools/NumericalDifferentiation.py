@@ -397,8 +397,7 @@ def conduct_numerical_differentiation(c: np.ndarray, defect_func: Callable, dc: 
                                                                        c=c,
                                                                        defect_func=defect_func,
                                                                        dc=dc_arr,
-                                                                       stencil_size=1,
-                                                                       network=network)
+                                                                       stencil_size=1)
         else:
             J, G_0 = _apply_numerical_differentiation_full(c=c,
                                                            defect_func=defect_func,
