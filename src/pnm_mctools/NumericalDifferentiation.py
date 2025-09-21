@@ -3,6 +3,8 @@ import scipy
 import time
 from inspect import signature
 from typing import Callable
+# from pathos.multiprocessing import ProcessingPool as Pool
+# from pathos.helpers import cpu_count
 
 
 def _compute_dc(x_0, dc_value: float):
@@ -239,7 +241,8 @@ def _apply_numerical_differentiation_exploit_sparsity(
         exclude: int | list[int] | None = None,
         stencil_size: int = 1,
         dtype=float,
-        opt: dict|None = None):
+        opt: dict|None = None,
+        parallelism: int = 1):
     r"""
     Conducts numerical differentiation, exploiting the sparsity structure of the network
     Parameters
@@ -279,7 +282,7 @@ def _apply_numerical_differentiation_exploit_sparsity(
     Nc = c.shape[1]
     if exclude is None:
         exclude = []
-    else if isinstance(exclude, int):
+    elif isinstance(exclude, int):
         exclude = [exclude]
 
     if not isinstance(opt, dict) or 'independent_pores' not in opt:
@@ -322,6 +325,36 @@ def _apply_numerical_differentiation_exploit_sparsity(
     # perturbances in one run of the defect function, significantly reducing
     # the computational cost
     tic = time.perf_counter_ns()
+
+    # below is an implementation for a potential parallel optimization.
+    # however, the defect function does not update. Once the core issue is
+    # resolved, this could lead to speedup for large systems
+    # if parallelism > 1:
+    #     parallelism = min(parallelism, cpu_count())
+    # pool = Pool(parallelism)
+
+    # def inner_loop(i: int):
+    #     p_loc = pore_independent[i]
+    #     J_loc = scipy.sparse.coo_matrix(shape_jac, dtype=dtype)  # initialize empty sparse matrix
+    #     p_aff = np.hstack(tuple(adj.indices[adj.indptr[p]:adj.indptr[p+1]] for p in p_loc))
+    #     num_conn = np.array(np.sum(adj[p_loc] != 0, axis=1)).ravel()
+    #     for n in range(Nc):
+    #         if n in exclude:
+    #             continue
+    #         cols = p_loc * Nc + n
+    #         rows = p_aff * Nc + n
+    #         c_loc = c.reshape(-1, 1).copy()
+    #         c_loc[cols] += dc_arr[cols]
+    #         G_loc = defect_func(c_loc.reshape(c.shape)).reshape((-1, 1))
+    #         values = np.array((G_loc-G0)/dc).ravel()  # avoid potential type issues if a matrix is returned
+    #         values = values[rows]
+    #         cols = np.hstack([np.asarray(np.tile([cols[i]], reps=(num_conn[i]))).reshape(-1) for i in range(len(cols))])
+    #         J_loc += scipy.sparse.coo_matrix((values, (rows, cols)), shape=shape_jac, dtype=dtype)
+    #     return J_loc
+
+    # result = pool.map(inner_loop, range(len(pore_independent)))
+    # for J_loc in result:
+    #     J += J_loc
     for p_loc in pore_independent:
         p_aff = np.hstack(tuple(adj.indices[adj.indptr[p]:adj.indptr[p+1]] for p in p_loc))
         num_conn = np.array(np.sum(adj[p_loc] != 0, axis=1)).ravel()
