@@ -179,6 +179,9 @@ def _apply_numerical_differentiation_locally_constrained(c: np.ndarray,
     Nc = c.shape[1]
     single_param = len(signature(defect_func)._parameters) == 1
 
+    if exclude is None:
+        exclude = []
+
     # we assume that each 'cell' is responsible for Nc coupled components
     # therefore leading to a block-wise structure of the Jacobian. That
     # means, that each row requires Nc values. So we extend store the
@@ -233,8 +236,10 @@ def _apply_numerical_differentiation_exploit_sparsity(
         c: np.ndarray,
         defect_func: Callable,
         dc: float,
+        exclude: int | list[int] | None = None,
         stencil_size: int = 1,
-        dtype=float):
+        dtype=float,
+        opt: dict|None = None):
     r"""
     Conducts numerical differentiation, exploiting the sparsity structure of the network
     Parameters
@@ -247,10 +252,14 @@ def _apply_numerical_differentiation_exploit_sparsity(
         function which computes the defect with signature array_like(array_like)
     dc: float
         base value for differentiation interval
+    exclude: int | list[int]
+        component IDs for which the numerical differentiation shall not be conducted
     stencil_size: int
         number of additional adacent pores to include in the sparsity structure
     dtype: data-type
         desired data-type of the scalars in the Jacobian
+    opt: dict | None
+        an optimization parameter, which will provide some reusable data
 
     Returns
     -------
@@ -265,27 +274,40 @@ def _apply_numerical_differentiation_exploit_sparsity(
     of multiple perturbances in one run of the defect function, significantly reducing
     the computational cost.
     """
-
-    # analyse the sparsity structure
-    adj = network.create_adjacency_matrix(weights=np.ones_like(network['throat.conns'], dtype=bool), fmt='csr')
+    tic = time.perf_counter_ns()
     num_pores = network.num_pores()
     Nc = c.shape[1]
-    pore_independent = []
-    list_pores_rem = np.arange(0, num_pores)
-    while len(list_pores_rem) > 0:
-        list_p_independent = list_pores_rem.copy()
-        i = 0
-        while i < len(list_p_independent):
-            p_loc = list_p_independent[i]
-            stencil_loc = set(adj.indices[adj.indptr[p_loc]:adj.indptr[p_loc+1]])
-            for _ in range(stencil_size):
-                for adj_p in stencil_loc.copy():
-                    stencil_loc.update(adj.indices[adj.indptr[adj_p]:adj.indptr[adj_p+1]])
-            list_p_independent = [p for p in list_p_independent if p not in stencil_loc or p == p_loc]
-            i += 1
-        pore_independent.append(np.array(list_p_independent))
-        list_pores_rem = [p for p in list_pores_rem if p not in list_p_independent]
+    if exclude is None:
+        exclude = []
+    else if isinstance(exclude, int):
+        exclude = [exclude]
 
+    if not isinstance(opt, dict) or 'independent_pores' not in opt:
+        # analyse the sparsity structure
+        adj = network.create_adjacency_matrix(weights=np.ones_like(network['throat.conns'], dtype=bool), fmt='csr')
+        pore_independent = []
+        list_pores_rem = np.arange(0, num_pores)
+        while len(list_pores_rem) > 0:
+            list_p_independent = list_pores_rem.copy()
+            i = 0
+            while i < len(list_p_independent):
+                p_loc = list_p_independent[i]
+                stencil_loc = set(adj.indices[adj.indptr[p_loc]:adj.indptr[p_loc+1]])
+                for _ in range(stencil_size):
+                    for adj_p in stencil_loc.copy():
+                        stencil_loc.update(adj.indices[adj.indptr[adj_p]:adj.indptr[adj_p+1]])
+                list_p_independent = [p for p in list_p_independent if p not in stencil_loc or p == p_loc]
+                i += 1
+            pore_independent.append(np.array(list_p_independent))
+            list_pores_rem = [p for p in list_pores_rem if p not in list_p_independent]
+        if isinstance(opt, dict):
+            opt['independent_pores'] = pore_independent
+            opt['adjacency_matrix'] = adj
+    else:
+        pore_independent = opt['independent_pores']
+        adj = opt['adjacency_matrix']
+
+    t_prep = time.perf_counter_ns() - tic
     # prepare basic variables
     dc_arr = _compute_dc(c.reshape((-1, 1)), dc)         # perturbance values
     G0 = defect_func(c).reshape((-1, 1))                 # reference defect
@@ -299,10 +321,13 @@ def _apply_numerical_differentiation_exploit_sparsity(
     # by the pore connectivity. This way, we can determine the influence of multiple
     # perturbances in one run of the defect function, significantly reducing
     # the computational cost
+    tic = time.perf_counter_ns()
     for p_loc in pore_independent:
         p_aff = np.hstack(tuple(adj.indices[adj.indptr[p]:adj.indptr[p+1]] for p in p_loc))
         num_conn = np.array(np.sum(adj[p_loc] != 0, axis=1)).ravel()
         for n in range(Nc):
+            if n in exclude:
+                continue
             cols = p_loc * Nc + n
             rows = p_aff * Nc + n
             c_loc = c.reshape(-1, 1).copy()
@@ -313,12 +338,14 @@ def _apply_numerical_differentiation_exploit_sparsity(
             cols = np.hstack([np.asarray(np.tile([cols[i]], reps=(num_conn[i]))).reshape(-1) for i in range(len(cols))])
             J += scipy.sparse.coo_matrix((values, (rows, cols)), shape=shape_jac, dtype=dtype)
     J = scipy.sparse.csr_matrix(J)
+    t_diff = time.perf_counter_ns() - tic
+    print(f'prep: {t_prep*1e-9} s - diff: {t_diff*1e-9} s')
     return J, G0
 
 
 def conduct_numerical_differentiation(c: np.ndarray, defect_func: Callable, dc: float = 1e-6, type: str = 'full',
                                       exclude: int | list[int] | None = None, axis: int = None,
-                                      network=None, stencil_size: int = 1):
+                                      network=None, stencil_size: int = 1, opt: dict|None = None):
     r"""
     Conducts numerical differentiation
 
@@ -397,7 +424,9 @@ def conduct_numerical_differentiation(c: np.ndarray, defect_func: Callable, dc: 
                                                                        c=c,
                                                                        defect_func=defect_func,
                                                                        dc=dc_arr,
-                                                                       stencil_size=1)
+                                                                       stencil_size=1,
+                                                                       exclude=exclude,
+                                                                       opt=opt)
         else:
             J, G_0 = _apply_numerical_differentiation_full(c=c,
                                                            defect_func=defect_func,
@@ -433,15 +462,25 @@ if __name__ == '__main__':  # pragma: no cover
 
         def Defect(c):
             return J_0 * c.reshape((-1, 1))
+
+        opt = {}
         tic = time.perf_counter_ns()
-        J, G = _apply_numerical_differentiation_exploit_sparsity(network=pn, c=c, defect_func=Defect, dc=1e-6)
+        J, G = _apply_numerical_differentiation_exploit_sparsity(network=pn, c=c, defect_func=Defect, dc=1e-6, opt=opt)
         toc = time.perf_counter_ns()
         if J.nnz == J_0.nnz and np.all(J.indices == J_0.indices) and np.all(J.indptr == J_0.indptr):  # noqa: E501
             err = np.max((J.data/J_0.data)-1)
         else:
             err = np.inf
+        print(f'runtime (init): {(toc-tic)*1e-9:1.2e} s - max error: {err}')
 
-        print(f'runtime: {(toc-tic)*1e-9:1.2e} s - max error: {err}')
+        tic = time.perf_counter_ns()
+        J, G = _apply_numerical_differentiation_exploit_sparsity(network=pn, c=c, defect_func=Defect, dc=1e-6, opt=opt)
+        toc = time.perf_counter_ns()
+        if J.nnz == J_0.nnz and np.all(J.indices == J_0.indices) and np.all(J.indptr == J_0.indptr):  # noqa: E501
+            err = np.max((J.data/J_0.data)-1)
+        else:
+            err = np.inf
+        print(f'runtime (opt): {(toc-tic)*1e-9:1.2e} s - max error: {err}')
 
     sizes = [50, 100, 500, 1000, 2000, 5000]
 
