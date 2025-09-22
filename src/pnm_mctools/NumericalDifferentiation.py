@@ -241,7 +241,7 @@ def _apply_numerical_differentiation_exploit_sparsity(
         exclude: int | list[int] | None = None,
         stencil_size: int = 1,
         dtype=float,
-        opt: dict|None = None,
+        opt: dict | None = None,
         parallelism: int = 1):
     r"""
     Conducts numerical differentiation, exploiting the sparsity structure of the network
@@ -312,7 +312,10 @@ def _apply_numerical_differentiation_exploit_sparsity(
 
     t_prep = time.perf_counter_ns() - tic
     # prepare basic variables
-    dc_arr = _compute_dc(c.reshape((-1, 1)), dc)         # perturbance values
+    if isinstance(dc, np.ndarray):
+        dc_arr = dc
+    else:
+        dc_arr = _compute_dc(c.reshape((-1, 1)), dc)         # perturbance values
     G0 = defect_func(c).reshape((-1, 1))                 # reference defect
     adj += scipy.sparse.eye(adj.shape[0], dtype=bool)    # to include self-dependency
     shape_jac = (num_pores*Nc, num_pores*Nc)             # shape of the Jacobian
@@ -348,7 +351,7 @@ def _apply_numerical_differentiation_exploit_sparsity(
     #         G_loc = defect_func(c_loc.reshape(c.shape)).reshape((-1, 1))
     #         values = np.array((G_loc-G0)/dc).ravel()  # avoid potential type issues if a matrix is returned
     #         values = values[rows]
-    #         cols = np.hstack([np.asarray(np.tile([cols[i]], reps=(num_conn[i]))).reshape(-1) for i in range(len(cols))])
+    #         cols = np.hstack([np.asarray(np.tile([cols[i]], reps=(num_conn[i]))).reshape(-1) for i in range(len(cols))]) # noqa: E501
     #         J_loc += scipy.sparse.coo_matrix((values, (rows, cols)), shape=shape_jac, dtype=dtype)
     #     return J_loc
 
@@ -378,7 +381,7 @@ def _apply_numerical_differentiation_exploit_sparsity(
 
 def conduct_numerical_differentiation(c: np.ndarray, defect_func: Callable, dc: float = 1e-6, type: str = 'full',
                                       exclude: int | list[int] | None = None, axis: int = None,
-                                      network=None, stencil_size: int = 1, opt: dict|None = None):
+                                      network=None, stencil_size: int = 1, opt: dict | None = None):
     r"""
     Conducts numerical differentiation
 

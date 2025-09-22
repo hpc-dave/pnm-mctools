@@ -1,5 +1,6 @@
 import numpy as np
 import scipy
+import openpnm as op
 from pnm_mctools import NumericalDifferentiation as nd
 
 
@@ -67,3 +68,38 @@ def test_locally_constrained():
     assert np.all(J_dense[~mask_zeros] == J_orig[~mask_zeros])
     err = np.max(np.abs((J_dense[mask_zeros]-J_orig[mask_zeros])/J_orig[mask_zeros]))
     assert err < dc
+
+
+def test_sparsity_exploit():
+    # test sparsity exploiting version
+    shape = [10, 10, 10]
+
+    Nc = 3
+    dc = 1e-6
+    c = np.ones((np.prod(shape), Nc), dtype=float)
+    pn = op.network.Cubic(shape=shape, spacing=1)
+    J_0 = pn.create_adjacency_matrix(weights=pn['throat.conns']+1, fmt='coo')
+    rows = np.hstack([J_0.row*Nc + n for n in range(Nc)])
+    cols = np.hstack([J_0.col*Nc + n for n in range(Nc)])
+    data = np.hstack([J_0.data * J_0.size * (n+1) for n in range(Nc)])
+    J_0 = scipy.sparse.coo_matrix((data, (rows, cols)), shape=(c.size, c.size), dtype=float)
+    J_0 += scipy.sparse.spdiags([np.arange(1, J_0.shape[0]+1)], [0], format='csr')
+
+    def Defect(c):
+        return J_0 * c.reshape((-1, 1))
+
+    opt = {}
+    J, G = nd.conduct_numerical_differentiation(c, defect_func=Defect, type='full', dc=dc, network=pn, opt=opt)
+    if J.nnz == J_0.nnz and np.all(J.indices == J_0.indices) and np.all(J.indptr == J_0.indptr):  # noqa: E501
+        err = np.max((J.data/J_0.data)-1)
+    else:
+        err = np.inf
+    assert err < 1e-3
+    assert opt, 'the optimization dictionary is empty'
+
+    J, G = nd.conduct_numerical_differentiation(c, defect_func=Defect, type='full', dc=dc, network=pn, opt=opt)
+    if J.nnz == J_0.nnz and np.all(J.indices == J_0.indices) and np.all(J.indptr == J_0.indptr):  # noqa: E501
+        err = np.max((J.data/J_0.data)-1)
+    else:
+        err = np.inf
+    assert err < 1e-3
