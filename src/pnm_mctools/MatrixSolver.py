@@ -55,10 +55,9 @@ class Solver:
                 case 'torch':
                     assert supports_torch, 'pytorch was not installed in the environment'
                     if device is None:
-                        self.device = torch.get_default_device()
+                        device = torch.get_default_device()
                     else:
                         assert device.startswith('cpu', 'cuda'), f'The chosen device ({device}) is not supported'
-                        self.device = device
                 case _:
                     raise ValueError(f'Backend "{backend}" is not supported')
         self.backend = backend

@@ -114,9 +114,11 @@ def test_DiffusionConvection(output: bool = True, file_output: bool = False):
             df.to_csv(f'output_DiffusionConvection_{t}.csv')
         time += dt
 
-    assert err < 20., f'Error is too high: {err}, maximum allowed is 20'
-    print('DiffusionConvection test does not have a success criteria yet!')
+    assert err < 2e-3, f'Error is too high: {err}, maximum allowed is 20'
 
 
 if __name__ == "__main__":
+    import torch
+    if torch.cuda.is_available():
+        torch.set_default_device('cuda')
     test_DiffusionConvection()
