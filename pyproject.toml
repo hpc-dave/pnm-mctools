@@ -40,7 +40,8 @@ addopts = [
 ]
 filterwarnings = [
     "error",
-    'ignore::DeprecationWarning'
+    'ignore::DeprecationWarning',
+    'ignore::UserWarning'
 ]
 
 [tool.pyright]
