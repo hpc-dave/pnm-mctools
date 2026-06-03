@@ -1,3 +1,7 @@
+# ANNOUNCEMENT
+The development of this repository has been moved to [https://github.com/multiscale-operations-in-porous-systems/pnm-ice](https://github.com/multiscale-operations-in-porous-systems/pnm-ice).
+No further updates or bug-fixes will be added here!
+
 # pnm-mctools
 This repository is intended as an extension of the OpenPNM framework for convenient implementation of multicomponent models. It consists of the following parts:
 - A tool set based on an OpenPNM network or compatible object
